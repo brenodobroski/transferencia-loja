@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transferências — Painel da Loja</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" type="image/jpeg" href="logo-site.jpg">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @keyframes pageFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        * { font-family: 'Inter', system-ui, sans-serif; }
+        body { animation: pageFadeIn 0.25s ease-out; }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        #sidebar { transition: width 0.3s ease, transform 0.3s ease; }
+        #main-content { transition: margin-left 0.3s ease; }
+        .nav-text, .profile-info, .logo-text { transition: opacity 0.2s ease; }
+
+        .sidebar-collapsed .nav-text,
+        .sidebar-collapsed .profile-info,
+        .sidebar-collapsed .logo-text { display: none; }
+        .sidebar-collapsed { width: 80px !important; }
+        .sidebar-collapsed-margin { margin-left: 80px !important; }
+
+        .custom-dropdown .seta { transition: transform 0.15s ease; }
+        .custom-dropdown .seta.girada { transform: rotate(180deg); }
+    </style>
+<base target="_blank">
+</head>
+<body class="bg-slate-50 text-slate-900 overflow-x-hidden">
+
+    <!-- ==================== TELA DE LOGIN ==================== -->
+    <div id="tela-login" class="w-full h-screen flex fixed inset-0 z-50 bg-white">
+
+        <!-- Painel esquerdo -->
+        <div class="relative flex-1 overflow-hidden hidden md:block" style="background: linear-gradient(150deg, #0a1628 0%, #1a3254 55%, #0f172a 100%);">
+            <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 20% 30%, #1d4ed8 0%, transparent 40%), radial-gradient(circle at 80% 70%, #3b82f6 0%, transparent 35%);"></div>
+            <div class="relative z-10 h-full flex flex-col justify-between p-10">
+                <div>
+                    <div style="width: 3px; height: 40px; background: #3b82f6; border-radius: 2px; margin-bottom: 1.5rem;"></div>
+                    <h2 class="text-5xl font-bold text-white leading-tight" style="letter-spacing: -1px;">
+                        Transferências<br><span class="text-blue-300">Clima Rio</span>
+                    </h2>
+                </div>
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded w-fit" style="background: rgba(10,22,40,0.55); backdrop-filter: blur(6px); border: 0.5px solid rgba(255,255,255,0.12);">
+                    <div style="width: 6px; height: 6px; background: #22c55e; border-radius: 50%; flex-shrink: 0;"></div>
+                    <span class="text-xs text-slate-300 font-medium">Acesso das Lojas</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel direito -->
+        <div class="flex flex-col justify-between bg-white w-full md:w-[420px] md:flex-shrink-0 p-8 md:p-10">
+            <div class="flex flex-col justify-center flex-1">
+                <div class="mb-8">
+                    <img src="./LOGO_CLIMARIO_OFICIAL.png" alt="Climario" class="h-8 object-contain mb-6">
+                    <h3 class="text-lg font-bold text-slate-900 mb-1">Acesso da Loja</h3>
+                    <p class="text-xs text-slate-400 mb-7">Entre com seu e-mail e senha</p>
+                </div>
+
+                <form id="login-form" class="space-y-4">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">E-mail</label>
+                        <input type="email" id="login-email" required placeholder="voce@climario.com.br"
+                               class="w-full px-3 py-2.5 rounded border text-sm outline-none transition-all bg-slate-50 text-slate-900 border-slate-200 focus:ring-2 focus:ring-blue-700/20 focus:border-blue-700">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Senha</label>
+                        <input type="password" id="login-senha" required placeholder="••••••••"
+                               class="w-full px-3 py-2.5 rounded border text-sm outline-none transition-all bg-slate-50 text-slate-900 border-slate-200 focus:ring-2 focus:ring-blue-700/20 focus:border-blue-700">
+                    </div>
+                    <p id="login-erro" class="text-xs text-red-600 font-medium hidden"></p>
+                    <button type="submit" id="login-botao" class="w-full bg-blue-700 hover:bg-blue-800 active:scale-[0.98] text-white font-semibold py-2.5 rounded transition-all text-xs uppercase tracking-widest mt-1">
+                        Entrar
+                    </button>
+                    <button type="button" onclick="abrirModalCadastro()" class="w-full border border-slate-300 hover:bg-slate-50 text-slate-600 font-semibold py-2.5 rounded transition-all text-xs uppercase tracking-widest">
+                        <i class="fas fa-user-plus mr-2"></i> Cadastre-se
+                    </button>
+                </form>
+            </div>
+            <p class="text-[10.5px] text-slate-500 text-right pt-4 border-t border-slate-100">Painel da Loja · Transferências Clima Rio</p>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: CADASTRO ==================== -->
+    <div id="modal-cadastro" class="fixed inset-0 bg-slate-900 bg-opacity-50 z-50 hidden flex justify-center items-center backdrop-blur-sm px-4">
+        <div class="bg-white rounded-sm shadow-xl w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onclick="fecharModalCadastro()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors text-2xl font-medium leading-none outline-none">&times;</button>
+            <h2 class="text-lg font-bold text-slate-800 mb-1">Cadastro de usuário</h2>
+            <p class="text-xs text-slate-500 mb-4">Preencha os dados. Seu acesso será liberado após aprovação do administrador.</p>
+
+            <form id="form-cadastro" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Nome completo <span class="text-red-500">*</span></label>
+                    <input type="text" id="cad-nome" required placeholder="Ex.: Maria Silva"
+                           class="w-full border border-slate-300 rounded-sm p-2.5 text-sm outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">E-mail <span class="text-red-500">*</span></label>
+                    <input type="email" id="cad-email" required placeholder="voce@climario.com.br"
+                           class="w-full border border-slate-300 rounded-sm p-2.5 text-sm outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Filial <span class="text-red-500">*</span></label>
+                    <div class="relative w-full custom-dropdown" id="dropdown-cad-filial">
+                        <button type="button" onclick="toggleDropdown('cad-filial')"
+                                class="w-full bg-white border border-slate-300 rounded-sm py-2.5 px-3 text-sm font-medium text-slate-700 flex justify-between items-center hover:border-blue-400 transition-all outline-none">
+                            <span id="texto-cad-filial" class="truncate pr-2 text-left">— Selecione sua filial —</span>
+                            <svg class="seta w-4 h-4 text-slate-500 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        <div id="lista-cad-filial" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-sm shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                            <ul id="opcoes-cad-filial" class="py-1 text-sm text-slate-700 font-bold"></ul>
+                        </div>
+                        <input type="hidden" id="input-cad-filial" value="">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Senha <span class="text-red-500">*</span></label>
+                    <input type="password" id="cad-senha" required minlength="6" placeholder="Mínimo 6 caracteres"
+                           class="w-full border border-slate-300 rounded-sm p-2.5 text-sm outline-none focus:border-blue-500">
+                </div>
+                <p id="msg-cadastro" class="text-xs font-medium hidden"></p>
+                <button type="submit" id="btn-cadastrar" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-medium py-3 rounded-sm uppercase text-sm transition-colors">
+                    Enviar cadastro para aprovação
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== APP ==================== -->
+    <div id="app" class="hidden">
+
+        <!-- Topbar mobile -->
+        <div class="md:hidden flex items-center justify-between bg-slate-950 text-white p-4 sticky top-0 z-40 shadow-md">
+            <div class="flex items-center">
+                <img src="./logo-site.jpg" alt="Climario" class="w-8 rounded-lg mr-3">
+                <span class="font-bold text-lg tracking-tight">Transferências <span class="text-slate-500 text-sm" id="topbar-loja"></span></span>
+            </div>
+            <button onclick="toggleMobileMenu()" class="text-slate-300 hover:text-white focus:outline-none">
+                <i class="fas fa-bars text-2xl"></i>
+            </button>
+        </div>
+
+        <div id="sidebar-backdrop" onclick="toggleMobileMenu()" class="fixed inset-0 bg-slate-900 bg-opacity-50 z-40 hidden md:hidden backdrop-blur-sm"></div>
+
+        <div class="flex">
+
+            <!-- Sidebar -->
+            <aside id="sidebar" class="w-64 bg-slate-900 text-slate-300 flex-shrink-0 flex flex-col h-screen fixed left-0 top-0 border-r border-slate-800 z-50 transform -translate-x-full md:translate-x-0">
+                <div class="h-16 flex items-center justify-between px-5 border-b border-slate-800 bg-slate-950 overflow-hidden">
+                    <div class="flex items-center flex-shrink-0">
+                        <img class="logo-text h-7 object-contain" src="./LOGO_CLIMARIO_NEGATIVO.png" alt="Climario">
+                    </div>
+                    <button onclick="toggleSidebarDesktop()" class="hidden md:flex text-slate-500 hover:text-white p-1 ml-1">
+                        <i id="toggle-icon" class="fas fa-chevron-left"></i>
+                    </button>
+                    <button onclick="toggleMobileMenu()" class="md:hidden text-slate-400 hover:text-white">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+
+                <nav class="flex-1 py-3 space-y-0.5 overflow-y-auto custom-scrollbar overflow-x-hidden">
+                    <button onclick="mudarAba('inicio')" id="btn-aba-inicio" class="w-full flex items-center gap-3 pl-4 pr-3 py-2.5 text-sm font-medium border-l-2 rounded-r-sm transition-colors border-blue-400 bg-slate-800 text-slate-200">
+                        <i class="fas fa-home flex-shrink-0 w-4 text-center"></i>
+                        <span class="nav-text whitespace-nowrap">Início</span>
+                    </button>
+                    <button onclick="mudarAba('sugestoes')" id="btn-aba-sugestoes" class="w-full flex items-center gap-3 pl-4 pr-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-l-2 border-transparent rounded-r-sm transition-colors">
+                        <i class="fas fa-exchange-alt flex-shrink-0 w-4 text-center"></i>
+                        <span class="nav-text whitespace-nowrap">Sugestões</span>
+                    </button>
+                    <button onclick="mudarAba('vendas')" id="btn-aba-vendas" class="w-full flex items-center gap-3 pl-4 pr-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-l-2 border-transparent rounded-r-sm transition-colors">
+                        <i class="fas fa-box-open flex-shrink-0 w-4 text-center"></i>
+                        <span class="nav-text whitespace-nowrap">Pedidos Avulsos</span>
+                    </button>
+                </nav>
+
+                <div class="p-3 border-t border-slate-800 bg-slate-950 overflow-hidden">
+                    <div class="flex items-center gap-3 mb-4 px-1">
+                        <div class="w-10 h-10 rounded bg-slate-800 flex items-center justify-center font-bold text-sm text-white flex-shrink-0 shadow-inner" id="perfil-iniciais">--</div>
+                        <div class="profile-info overflow-hidden min-w-0">
+                            <p class="text-sm font-bold text-white truncate" id="perfil-nome">Carregando...</p>
+                            <p class="text-[10px] text-slate-500 truncate" id="perfil-email">usuário da loja</p>
+                        </div>
+                    </div>
+                    <button onclick="sairDoSistema()" class="w-full flex items-center gap-4 px-3 py-2 rounded-md text-xs font-medium text-red-400 hover:bg-red-950/20 transition-colors group">
+                        <i class="fas fa-sign-out-alt text-lg flex-shrink-0 w-6 text-center"></i>
+                        <span class="nav-text whitespace-nowrap">Sair do Sistema</span>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Conteúdo -->
+            <main id="main-content" class="flex-1 ml-0 md:ml-64 p-4 md:p-8 min-h-screen w-full overflow-x-hidden">
+                <div class="max-w-[1200px] mx-auto space-y-6">
+
+                    <!-- Header -->
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-200 pb-4 gap-4">
+                        <div>
+                            <h2 id="titulo-pagina" class="text-xl sm:text-2xl font-bold text-slate-900">Início</h2>
+                            <p id="subtitulo-pagina" class="text-slate-500 text-xs font-medium mt-1">Visão geral das suas transferências.</p>
+                        </div>
+                        <button onclick="atualizarTudo(true)" class="w-full sm:w-auto bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 px-4 py-2 rounded-sm text-sm font-medium transition-all flex items-center justify-center">
+                            <i class="fas fa-sync-alt mr-2"></i> Atualizar
+                        </button>
+                    </div>
+
+                    <!-- ===== ABA: INÍCIO ===== -->
+                    <section id="secao-inicio" class="space-y-6">
+                        <div id="cards-resumo" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+                        <div class="bg-white border border-slate-200 rounded-sm p-5">
+                            <h3 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4 flex items-center gap-2">
+                                <i class="fas fa-calendar-week text-blue-700"></i> Minha agenda de sugestões
+                            </h3>
+                            <div id="minha-agenda"></div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-sm p-5">
+                            <h3 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4">Atividade recente</h3>
+                            <div id="atividade-recente"></div>
+                        </div>
+                    </section>
+
+                    <!-- ===== ABA: SUGESTÕES ===== -->
+                    <section id="secao-sugestoes" class="hidden space-y-6">
+
+                        <div class="bg-blue-50 border border-blue-200 rounded-sm p-4 flex items-start gap-3">
+                            <i class="fas fa-info-circle text-blue-700 mt-0.5"></i>
+                            <div class="text-xs text-blue-800 leading-relaxed">
+                                <p class="font-bold mb-1">Como responder uma sugestão:</p>
+                                <ol class="list-decimal ml-4 space-y-0.5">
+                                    <li><strong>Baixe a planilha enviada pelo admin</strong> — o envio só é liberado após o download.</li>
+                                    <li>Faça as alterações que desejar na planilha.</li>
+                                    <li>Envie a planilha alterada de volta e aguarde o número do pedido.</li>
+                                </ol>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-sm p-5">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                                <h3 class="text-base font-bold text-slate-800">Sugestões recebidas</h3>
+                                <div class="relative custom-dropdown w-full sm:w-64" id="dropdown-filtro-status-sug">
+                                    <button type="button" onclick="toggleDropdown('filtro-status-sug')"
+                                            class="w-full bg-white border border-slate-300 rounded-sm py-2 px-3 text-xs font-bold text-slate-700 flex justify-between items-center hover:border-blue-400 transition-all outline-none">
+                                        <span id="texto-filtro-status-sug" class="truncate pr-2 text-left">Todas as situações</span>
+                                        <svg class="seta w-3.5 h-3.5 text-slate-500 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                    </button>
+                                    <div id="lista-filtro-status-sug" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-sm shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                                        <ul id="opcoes-filtro-status-sug" class="py-1 text-xs text-slate-700 font-bold"></ul>
+                                    </div>
+                                    <input type="hidden" id="input-filtro-status-sug" value="">
+                                </div>
+                            </div>
+                            <div id="lista-transferencias" class="flex flex-col gap-2"></div>
+                        </div>
+                    </section>
+
+                    <!-- ===== ABA: PEDIDOS AVULSOS ===== -->
+                    <section id="secao-vendas" class="hidden space-y-6">
+
+                        <!-- Autorizações pendentes comigo (só gestor/supervisor) -->
+                        <div class="bg-white border border-slate-200 rounded-sm p-5" id="card-autorizacoes">
+                            <h3 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4 flex items-center gap-2">
+                                <i class="fas fa-user-shield text-amber-500"></i> Autorizações pendentes com você
+                            </h3>
+                            <div id="lista-autorizacoes" class="flex flex-col gap-2"></div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-sm p-5">
+                            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                                <h3 class="text-base font-bold text-slate-800">Meus pedidos avulsos</h3>
+                                <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                                    <div class="relative custom-dropdown w-full sm:w-64" id="dropdown-filtro-status-venda">
+                                        <button type="button" onclick="toggleDropdown('filtro-status-venda')"
+                                                class="w-full bg-white border border-slate-300 rounded-sm py-2 px-3 text-xs font-bold text-slate-700 flex justify-between items-center hover:border-blue-400 transition-all outline-none">
+                                            <span id="texto-filtro-status-venda" class="truncate pr-2 text-left">Todas as situações</span>
+                                            <svg class="seta w-3.5 h-3.5 text-slate-500 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </button>
+                                        <div id="lista-filtro-status-venda" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-sm shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                                            <ul id="opcoes-filtro-status-venda" class="py-1 text-xs text-slate-700 font-bold"></ul>
+                                        </div>
+                                        <input type="hidden" id="input-filtro-status-venda" value="">
+                                    </div>
+                                    <button onclick="abrirModalPedidoAvulso()" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-sm text-xs font-bold uppercase tracking-wide transition-colors whitespace-nowrap flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-plus mr-1"></i> Novo pedido avulso
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="lista-vendas" class="flex flex-col gap-2"></div>
+                        </div>
+                    </section>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: ENVIAR PLANILHA RESPONDIDA ==================== -->
+    <div id="modal-resposta" class="fixed inset-0 bg-slate-900 bg-opacity-50 z-50 hidden flex justify-center items-center backdrop-blur-sm px-4">
+        <div class="bg-white rounded-sm shadow-xl w-full max-w-md p-6 relative">
+            <button onclick="fecharModalResposta()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors text-2xl font-medium leading-none outline-none">&times;</button>
+            <h2 class="text-lg font-bold text-slate-800 mb-1">Enviar planilha respondida</h2>
+            <p id="modal-resposta-info" class="text-xs text-slate-500 mb-4"></p>
+            <label class="block text-xs font-medium text-slate-700 mb-1">Planilha alterada pela loja <span class="text-red-500">*</span></label>
+            <input type="file" id="resposta-arquivo" accept=".xlsx,.xls,.csv,.ods" required
+                   class="w-full px-3 py-2 rounded border text-sm bg-slate-50 border-slate-200 text-slate-600 file:mr-3 file:py-1 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-blue-700 file:text-white file:cursor-pointer">
+            <label class="block text-xs font-medium text-slate-700 mb-1 mt-3">Observações (opcional)</label>
+            <textarea id="resposta-obs" rows="3" placeholder="Ex.: alterei a quantidade dos itens 3 e 7"
+                      class="w-full px-3 py-2.5 rounded border text-sm outline-none transition-all bg-slate-50 border-slate-200 focus:ring-2 focus:ring-blue-700/20 focus:border-blue-700"></textarea>
+            <p id="msg-modal-resposta" class="text-xs text-red-600 font-medium mt-2 hidden"></p>
+            <button onclick="confirmarResposta()" id="btn-confirmar-resposta" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-medium py-3 rounded-sm uppercase text-sm mt-4 transition-colors">
+                Enviar planilha
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: DETALHES (sugestão / pedido avulso) ==================== -->
+    <div id="modal-detalhe" class="fixed inset-0 bg-slate-900 bg-opacity-50 z-50 hidden flex justify-center items-center backdrop-blur-sm px-4">
+        <div class="bg-white rounded-sm shadow-xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onclick="fecharModalDetalhe()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors text-2xl font-medium leading-none outline-none">&times;</button>
+            <div id="modal-detalhe-conteudo"></div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: NOVO PEDIDO AVULSO ==================== -->
+    <div id="modal-pedido-avulso" class="fixed inset-0 bg-slate-900 bg-opacity-50 z-50 hidden flex justify-center items-center backdrop-blur-sm px-4">
+        <div class="bg-white rounded-sm shadow-xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onclick="fecharModalPedidoAvulso()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors text-2xl font-medium leading-none outline-none">&times;</button>
+            <h2 class="text-lg font-bold text-slate-800 mb-1">Novo pedido avulso</h2>
+            <p class="text-xs text-slate-500 mb-4">Anexe o PDF do pedido aprovado e informe as filiais de saída e destino.</p>
+
+            <form id="form-venda" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Filial de saída</label>
+                        <div class="relative w-full custom-dropdown" id="dropdown-venda-saida">
+                            <button type="button" onclick="toggleDropdown('venda-saida')"
+                                    class="w-full bg-white border border-slate-300 rounded-sm py-2.5 px-3 text-sm font-medium text-slate-700 flex justify-between items-center hover:border-blue-400 transition-all outline-none">
+                                <span id="texto-venda-saida" class="truncate pr-2 text-left">— Selecione —</span>
+                                <svg class="seta w-4 h-4 text-slate-500 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <div id="lista-venda-saida" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-sm shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                                <ul id="opcoes-venda-saida" class="py-1 text-sm text-slate-700 font-bold"></ul>
+                            </div>
+                            <input type="hidden" id="input-venda-saida" value="">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Filial de destino</label>
+                        <div class="relative w-full custom-dropdown" id="dropdown-venda-destino">
+                            <button type="button" onclick="toggleDropdown('venda-destino')"
+                                    class="w-full bg-white border border-slate-300 rounded-sm py-2.5 px-3 text-sm font-medium text-slate-700 flex justify-between items-center hover:border-blue-400 transition-all outline-none">
+                                <span id="texto-venda-destino" class="truncate pr-2 text-left">— Selecione —</span>
+                                <svg class="seta w-4 h-4 text-slate-500 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <div id="lista-venda-destino" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-sm shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                                <ul id="opcoes-venda-destino" class="py-1 text-sm text-slate-700 font-bold"></ul>
+                            </div>
+                            <input type="hidden" id="input-venda-destino" value="">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">PDF do pedido aprovado</label>
+                    <input type="file" id="venda-arquivo" accept="application/pdf" required
+                           class="w-full px-3 py-2 rounded border text-sm bg-slate-50 border-slate-200 text-slate-600 file:mr-3 file:py-1 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-blue-700 file:text-white file:cursor-pointer">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Observações (opcional)</label>
+                    <textarea id="venda-obs" rows="2" placeholder="Ex.: cliente aguardando entrega"
+                              class="w-full px-3 py-2.5 rounded border text-sm outline-none transition-all bg-slate-50 border-slate-200 focus:ring-2 focus:ring-blue-700/20 focus:border-blue-700"></textarea>
+                </div>
+                <button type="submit" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 rounded transition-all text-xs uppercase tracking-widest">
+                    <i class="fas fa-paper-plane mr-2"></i> Enviar pedido avulso
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: DETALHES DA AUTORIZAÇÃO ==================== -->
+    <div id="modal-autorizacao" class="fixed inset-0 bg-slate-900 bg-opacity-50 z-50 hidden flex justify-center items-center backdrop-blur-sm px-4">
+        <div class="bg-white rounded-sm shadow-xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onclick="fecharModalAutorizacao()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors text-2xl font-medium leading-none outline-none">&times;</button>
+            <h2 class="text-lg font-bold text-slate-800 mb-1">Autorização de pedido avulso</h2>
+            <p class="text-xs text-slate-500 mb-4">Analise o pedido completo antes de decidir.</p>
+
+            <div id="autorizacao-detalhes" class="flex flex-col gap-2 mb-4"></div>
+
+            <div class="border-t border-slate-100 pt-3 mb-4">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">Processo / autorizações</p>
+                <div id="autorizacao-processo" class="flex flex-col gap-1.5"></div>
+            </div>
+
+            <label class="block text-xs font-medium text-slate-700 mb-1">Justificativa <span class="text-slate-400">(obrigatória apenas se recusar)</span></label>
+            <textarea id="input-motivo-recusa" rows="2" placeholder="Ex.: sem saldo disponível para o item casado"
+                      class="w-full border border-slate-300 rounded-sm p-2.5 text-sm outline-none focus:border-blue-500"></textarea>
+            <p id="msg-modal-autorizacao" class="text-xs text-red-600 font-medium mt-2 hidden"></p>
+
+            <div class="flex gap-2 mt-4">
+                <button onclick="confirmarRecusaAutorizacao()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3 rounded-sm uppercase text-sm transition-colors">
+                    <i class="fas fa-times mr-1"></i> Recusar
+                </button>
+                <button onclick="confirmarOkAutorizacao()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 rounded-sm uppercase text-sm transition-colors">
+                    <i class="fas fa-check mr-1"></i> Autorizar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-sm text-sm font-medium z-[99] shadow-xl hidden"></div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

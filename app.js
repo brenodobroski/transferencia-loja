@@ -103,8 +103,20 @@ function blocoFase(titulo, linhas) {
 }
 
 
+let detalheAbertoId = null;
+let detalheAbertoTipo = null; // "transf" | "venda"
+
 function fecharModalDetalhe() {
   $("modal-detalhe").classList.add("hidden");
+  detalheAbertoId = null;
+  detalheAbertoTipo = null;
+}
+
+/* ⬅ Re-renderiza o modal de detalhes que está aberto (ex.: após baixar/responder) */
+function atualizarModalDetalhe() {
+  if (!detalheAbertoId) return;
+  if (detalheAbertoTipo === "transf") abrirModalDetalheTransfLoja(detalheAbertoId);
+  else abrirModalDetalheVendaLoja(detalheAbertoId);
 }
 
 /* ---------- Utilitários ---------- */
@@ -712,6 +724,8 @@ function renderizarTransferencias() {
 function abrirModalDetalheTransfLoja(id) {
   const t = transferenciasCache[id];
   if (!t) return;
+  detalheAbertoId = id;
+  detalheAbertoTipo = "transf";
   const pedidosT = Array.isArray(t.pedidos) ? t.pedidos : [];
 
   let rodape = "";
@@ -765,6 +779,7 @@ async function baixarTransfPorId(id, tipo) {
       if (!error) {
         t.baixado_pela_loja = true;
         renderizarTransferencias();
+        atualizarModalDetalhe(); // ⬅ atualiza o modal aberto: libera o envio na hora
         mostrarToast("Planilha baixada! Agora você pode enviar sua resposta.");
       }
     }
@@ -800,6 +815,7 @@ async function confirmarResposta() {
   const btn = $("btn-confirmar-resposta");
   btn.disabled = true;
   btn.innerText = "Enviando...";
+  const idRespondida = transferenciaEmEdicao; // ⬅ captura antes de fechar
   try {
     const arquivo = await lerArquivo($("resposta-arquivo"));
     const t = transferenciasCache[transferenciaEmEdicao];
@@ -820,6 +836,9 @@ async function confirmarResposta() {
     fecharModalResposta();
     renderizarInicio();
     renderizarTransferencias();
+    detalheAbertoId = idRespondida;   // ⬅ reabre/atualiza o detalhe por cima
+    detalheAbertoTipo = "transf";
+    atualizarModalDetalhe();
     mostrarToast("Planilha respondida enviada ao admin.");
   } catch (err) {
     $("msg-modal-resposta").innerText = err.message;
@@ -1008,6 +1027,7 @@ async function confirmarOkAutorizacao() {
   fecharModalAutorizacao();
   await carregarVendasSupabase();
   renderizarVendas();
+  atualizarModalDetalhe();
   mostrarToast(!restantes || restantes.length === 0
     ? "Você autorizou — todos já autorizaram! O admin já pode aprovar."
     : "Autorização registrada. Ainda aguardando outras pessoas.");
@@ -1040,6 +1060,7 @@ async function confirmarRecusaAutorizacao() {
   await carregarVendasSupabase();
   renderizarVendas();
   renderizarInicio();
+  atualizarModalDetalhe();
   mostrarToast("Autorização recusada. O pedido foi negado com a justificativa.");
 }
 
@@ -1104,6 +1125,8 @@ function renderizarVendas() {
 function abrirModalDetalheVendaLoja(id) {
   const v = vendasCache[id];
   if (!v) return;
+  detalheAbertoId = id;
+  detalheAbertoTipo = "venda";
   const pedidos = Array.isArray(v.pedidos) ? v.pedidos : [];
 
   let rodape = "";

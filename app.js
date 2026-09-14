@@ -581,7 +581,7 @@ async function renderizarInicio() {
     card(novas, "novas sugestões", "border-t-amber-400", "fa-inbox") +
     card(devolvidas, "aguardando pedido", "border-t-sky-400", "fa-paper-plane") +
     card(pedidos, "pedidos registrados", "border-t-green-500", "fa-check-circle") +
-    card(vendasPendentes, "vendas casadas pendentes", "border-t-indigo-400", "fa-box-open");
+    card(vendasPendentes, "pedidos avulsos pendentes", "border-t-indigo-400", "fa-box-open");
 
   renderizarMinhaAgenda();
   renderizarAtividade(transf, vendas);

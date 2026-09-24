@@ -881,13 +881,13 @@ async function confirmarResposta() {
 function renderizarDropdownsVenda() {
   preencherDropdown(
     "venda-saida",
-    filiais.map(f => ({ valor: f.id, texto: f.nome })),   // ⬅ vindo do Supabase
+    filiais.map(f => ({ valor: f.id, texto: `${f.id} - ${f.nome}` })),   // ⬅ "código - nome"
     usuarioAtual?.filial || null,
     "— Selecione —"
   );
   preencherDropdown(
     "venda-destino",
-    filiais.map(f => ({ valor: f.id, texto: f.nome })),   // ⬅ inclui a PRÓPRIA filial
+    filiais.map(f => ({ valor: f.id, texto: `${f.id} - ${f.nome}` })),   // ⬅ "código - nome"
     "",
     "— Selecione —"
   );
@@ -1248,21 +1248,57 @@ function abrirModalDetalheVendaLoja(id) {
     ? v.evidencias
     : (v.arquivo_nome ? [{ nome: v.arquivo_nome, conteudo: v.arquivo_conteudo }] : []);
 
-  // ⬅ BLOCO 1: PEDIDO ENVIADO
-  const blocoPedido = blocoFase("Pedido enviado", [
-    `<p class="text-[11px] text-slate-500"><strong>Enviado por:</strong> ${escapeHtml(v.usuario_nome || "você")} · ${dataHoraBr(v.data_envio)}</p>`,
-    `<div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 flex-wrap">
-      <span class="bg-white border border-slate-200 px-1.5 py-0.5 rounded-sm">Saída: ${nomeLoja(v.filial_saida)}</span>
-      <i class="fas fa-arrow-right text-slate-300 text-[9px]"></i>
-      <span class="bg-white border border-slate-200 px-1.5 py-0.5 rounded-sm">Destino: ${nomeLoja(v.filial_destino)}</span>
-    </div>`,
-    evidencias.length ? `<p class="text-[11px] text-slate-500"><i class="fas fa-paperclip text-slate-300 mr-1"></i>${evidencias.map((ev, i) => `<a href="#" onclick="event.preventDefault(); baixarEvidenciaVenda('${v.id}', ${i})" class="text-blue-700 font-bold">${escapeHtml(ev.nome)}</a>`).join(" · ")}</p>` : "",
-    v.obs ? `<p class="text-[11px] text-slate-500"><i class="fas fa-comment-dots text-indigo-300 mr-1"></i>${escapeHtml(v.obs)}</p>` : ""
-  ]);
+  // ⬅ BLOCO 1: PEDIDO ENVIADO (espaçoso, evidências uma abaixo da outra, obs em sub-bloco)
+  const blocoPedido = `
+    <div>
+      <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1.5">Pedido enviado</span>
+      <div class="border border-slate-200 bg-slate-50/60 rounded-sm px-4 py-3 flex flex-col gap-2">
+        <p class="text-xs text-slate-600"><strong>Solicitante:</strong> ${escapeHtml(v.usuario_nome || "você")}</p>
+        <p class="text-xs text-slate-600"><strong>Data:</strong> ${dataHoraBr(v.data_envio)}</p>
+        <div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 flex-wrap">
+          <span class="bg-white border border-slate-200 px-1.5 py-0.5 rounded-sm">Saída: ${nomeLoja(v.filial_saida)}</span>
+          <i class="fas fa-arrow-right text-slate-300 text-[9px]"></i>
+          <span class="bg-white border border-slate-200 px-1.5 py-0.5 rounded-sm">Destino: ${nomeLoja(v.filial_destino)}</span>
+        </div>
+        ${evidencias.length ? `
+        <div class="flex flex-col gap-1.5">
+          <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide">Evidências</span>
+          ${evidencias.map((ev, i) => `<p class="text-xs text-slate-500"><i class="fas fa-paperclip text-slate-300 mr-1"></i><a href="#" onclick="event.preventDefault(); baixarEvidenciaVenda('${v.id}', ${i})" class="text-blue-700 font-bold">${escapeHtml(ev.nome)}</a></p>`).join("")}
+        </div>` : ""}
+        ${v.obs ? `
+        <div class="border border-slate-200 bg-white rounded-sm px-3 py-2">
+          <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">O que foi escrito</span>
+          <p class="text-xs text-slate-600"><i class="fas fa-comment-dots text-indigo-300 mr-1"></i>${escapeHtml(v.obs)}</p>
+        </div>` : ""}
+      </div>
+    </div>`;
 
-  // ⬅ BLOCO FINAL: RESPOSTA DO ADMIN (sempre por último)
-  let blocoResposta = "";
-  if (v.status === "aprovado") {
+  // ⬅ RESPOSTAS DO ADMIN: histórico completo (negativas nunca somem) ou legado
+  const historico = Array.isArray(v.historico_respostas) ? v.historico_respostas : [];
+  let blocoResposta;
+  if (historico.length) {
+    blocoResposta = historico.map(h => {
+      if (h.tipo === "aprovado") {
+        return `
+          <div>
+            <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Resposta do admin — APROVADO</span>
+            <div class="border border-green-200 bg-green-50 rounded-sm px-3 py-2 flex flex-col gap-1">
+              ${(h.pedidos || []).length ? blocoPedidos(h.pedidos) : `<p class="text-[11px] text-green-700 italic">Sem pedidos registrados.</p>`}
+              <p class="text-[11px] text-green-700"><strong>Concluído em:</strong> ${dataHoraBr(h.data)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(h.por || "Admin")}</p>
+            </div>
+          </div>`;
+      }
+      const def = h.tipo === "negado_permanente";
+      return `
+        <div>
+          <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Resposta do admin — ${def ? "NEGADO DEFINITIVAMENTE" : "NEGADO"}</span>
+          <div class="border border-red-200 bg-red-50 rounded-sm px-3 py-2 flex flex-col gap-1">
+            ${h.motivo ? `<p class="text-[11px] text-red-600"><i class="fas fa-ban text-red-300 mr-1"></i><strong>${escapeHtml(h.motivo)}</strong></p>` : ""}
+            <p class="text-[11px] text-red-600"><strong>${def ? "Negado definitivamente em:" : "Negado em:"}</strong> ${dataHoraBr(h.data)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(h.por || "Admin")}</p>
+          </div>
+        </div>`;
+    }).join("");
+  } else if (v.status === "aprovado") {
     blocoResposta = `
       <div>
         <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Resposta do admin — APROVADO</span>
@@ -1271,16 +1307,18 @@ function abrirModalDetalheVendaLoja(id) {
           <p class="text-[11px] text-green-700"><strong>Concluído em:</strong> ${dataHoraBr(v.data_resposta)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(v.respondido_por || "Admin")}</p>
         </div>
       </div>`;
-  }
-  if (v.status === "negado" || v.status === "negado_permanente") {
+  } else if (v.status === "negado" || v.status === "negado_permanente") {
+    const def = v.status === "negado_permanente";
     blocoResposta = `
       <div>
-        <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Resposta do admin — ${v.status === "negado_permanente" ? "NEGADO DEFINITIVAMENTE" : "NEGADO"}</span>
+        <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Resposta do admin — ${def ? "NEGADO DEFINITIVAMENTE" : "NEGADO"}</span>
         <div class="border border-red-200 bg-red-50 rounded-sm px-3 py-2 flex flex-col gap-1">
           ${v.motivo_negacao ? `<p class="text-[11px] text-red-600"><i class="fas fa-ban text-red-300 mr-1"></i><strong>${escapeHtml(v.motivo_negacao)}</strong></p>` : ""}
-          <p class="text-[11px] text-red-600"><strong>${v.status === "negado_permanente" ? "Negado definitivamente em:" : "Negado em:"}</strong> ${dataHoraBr(v.data_resposta)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(v.respondido_por || "Admin")}</p>
+          <p class="text-[11px] text-red-600"><strong>${def ? "Negado definitivamente em:" : "Negado em:"}</strong> ${dataHoraBr(v.data_resposta)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(v.respondido_por || "Admin")}</p>
         </div>
       </div>`;
+  } else {
+    blocoResposta = "";
   }
 
   const ajustesHtml = (Array.isArray(v.ajustes) && v.ajustes.length) ? `

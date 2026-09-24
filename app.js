@@ -1288,7 +1288,7 @@ function abrirModalDetalheVendaLoja(id) {
         </div>` : ""}
         ${v.obs ? `
         <div class="border border-slate-200 bg-white rounded-sm px-3 py-2">
-          <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">O que foi escrito</span>
+          <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Observação:</span>
           <p class="text-xs text-slate-600"><i class="fas fa-comment-dots text-indigo-300 mr-1"></i>${escapeHtml(v.obs)}</p>
         </div>` : ""}
       </div>
@@ -1314,8 +1314,12 @@ function abrirModalDetalheVendaLoja(id) {
     return `
       <div>
         <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Resposta do admin — ${def ? "NEGADO DEFINITIVAMENTE" : "NEGADO"}</span>
-        <div class="border border-red-200 bg-red-50 rounded-sm px-3 py-2 flex flex-col gap-1">
-          ${h.motivo ? `<p class="text-[11px] text-red-600"><i class="fas fa-ban text-red-300 mr-1"></i><strong>${escapeHtml(h.motivo)}</strong></p>` : ""}
+        <div class="border border-red-200 bg-red-50 rounded-sm px-3 py-2 flex flex-col gap-1.5">
+          ${h.motivo ? `
+          <div class="border border-red-200 bg-white rounded-sm px-2.5 py-1.5">
+            <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-0.5">Observação:</span>
+            <p class="text-[11px] text-red-600"><i class="fas fa-ban text-red-300 mr-1"></i><strong>${escapeHtml(h.motivo)}</strong></p>
+          </div>` : ""}
           <p class="text-[11px] text-red-600"><strong>${def ? "Negado definitivamente em:" : "Negado em:"}</strong> ${dataHoraBr(h.data)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(h.por || "Admin")}</p>
         </div>
       </div>`;
@@ -1324,9 +1328,13 @@ function abrirModalDetalheVendaLoja(id) {
   const blocoAjust = a => `
     <div>
       <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Seu ajuste</span>
-      <div class="border border-slate-200 bg-white rounded-sm px-3 py-2 flex flex-col gap-1">
+      <div class="border border-slate-200 bg-white rounded-sm px-3 py-2 flex flex-col gap-1.5">
         <p class="text-[11px] text-slate-400">${escapeHtml(a.por)} · ${dataHoraBr(a.data)}</p>
-        ${a.obs ? `<p class="text-[11px] text-slate-600"><i class="fas fa-comment-dots text-sky-400 mr-1"></i>${escapeHtml(a.obs)}</p>` : ""}
+        ${a.obs ? `
+        <div class="border border-slate-200 bg-slate-50 rounded-sm px-2.5 py-1.5">
+          <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-0.5">Observação:</span>
+          <p class="text-[11px] text-slate-600"><i class="fas fa-comment-dots text-sky-400 mr-1"></i>${escapeHtml(a.obs)}</p>
+        </div>` : ""}
         ${(a.evidencias || []).map((ev, i) => `<p class="text-[11px] text-slate-500"><i class="fas fa-paperclip text-slate-300 mr-1"></i><a href="#" onclick="event.preventDefault(); baixarEvidenciaAjuste('${v.id}', '${a.data}', ${i})" class="text-blue-700 font-bold">${escapeHtml(ev.nome)}</a></p>`).join("")}
       </div>
     </div>`;

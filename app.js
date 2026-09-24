@@ -45,7 +45,7 @@ function mostrarToast(msg) {
 
 function nomeLoja(id) {
   const f = filiais.find(x => x.id === id);   // tabela "filiais" do Supabase
-  return f ? f.nome : id;
+  return f ? `${f.id} - ${f.nome}` : id;      // ⬅ sempre "código - nome"
 }
 
 function dataHoraBr(iso) {
@@ -929,6 +929,44 @@ function renderizarDiaAvulso() {
   }
 }
 
+/* ⬇ Evidências gerenciadas (adicionar/remover antes do envio) */
+const evidenciasSelecionadas = { venda: [], ajuste: [] };
+
+function adicionarEvidencia(input, listaId, chave) {
+  const arq = input.files[0];
+  if (!arq) return;
+  if (arq.size > LIMITE_ARQUIVO) { mostrarToast(`"${arq.name}" é muito grande (máx. 500 KB).`); input.value = ""; return; }
+  if (evidenciasSelecionadas[chave].some(e => e.nome === arq.name)) { mostrarToast("Esse arquivo já foi adicionado."); input.value = ""; return; }
+  evidenciasSelecionadas[chave].push({ nome: arq.name, arquivo: arq });
+  input.value = "";
+  renderizarEvidenciasSelecionadas(listaId, chave);
+}
+
+function removerEvidencia(listaId, chave, nome) {
+  evidenciasSelecionadas[chave] = evidenciasSelecionadas[chave].filter(e => e.nome !== nome);
+  renderizarEvidenciasSelecionadas(listaId, chave);
+}
+
+function renderizarEvidenciasSelecionadas(listaId, chave) {
+  const lista = $(listaId);
+  if (!lista) return;
+  const itens = evidenciasSelecionadas[chave];
+  lista.innerHTML = itens.length ? itens.map(e => `
+    <div class="flex items-center justify-between gap-2 border border-slate-200 bg-slate-50 rounded-sm px-2.5 py-1.5">
+      <span class="text-[11px] font-bold text-slate-600 truncate"><i class="fas fa-paperclip text-slate-300 mr-1"></i>${escapeHtml(e.nome)}</span>
+      <button type="button" onclick="removerEvidencia('${listaId}', '${chave}', '${escapeHtml(e.nome)}')" class="text-slate-300 hover:text-red-500 transition-colors leading-none text-lg" title="Remover">&times;</button>
+    </div>`).join("") : "";
+}
+
+/* ⬇ Modal de aviso de regra de bloqueio (central, com OK CIENTE) */
+function abrirModalAvisoRegra(msg) {
+  $("aviso-regra-texto").innerText = msg;
+  $("modal-aviso-regra").classList.remove("hidden");
+}
+function fecharModalAvisoRegra() {
+  $("modal-aviso-regra").classList.add("hidden");
+}
+
 /* ⬇ Modal Novo Pedido Avulso */
 function abrirModalPedidoAvulso() {
   const info = proximoDiaInfo();
@@ -937,6 +975,8 @@ function abrirModalPedidoAvulso() {
     return;
   }
   $("form-venda").reset();
+  evidenciasSelecionadas.venda = [];
+  renderizarEvidenciasSelecionadas("lista-evidencias-venda", "venda");
   renderizarDropdownsVenda();
   $("modal-pedido-avulso").classList.remove("hidden");
 }
@@ -961,22 +1001,21 @@ $("form-venda").addEventListener("submit", async e => {
     return;
   }
 
-  // ⬅ Regras de bloqueio de transferência
+  // ⬅ Regras de bloqueio de transferência — aviso central com OK CIENTE
   const regra = regrasCache.find(r => r.filial_saida === saida && r.filial_destino === destino);
   if (regra) {
-    mostrarToast(`Não pode ocorrer transferências entre essas filiais${regra.motivo ? ": " + regra.motivo : ""}.`);
+    abrirModalAvisoRegra(`Não pode ocorrer transferências entre essas filiais${regra.motivo ? ": " + regra.motivo : ""}.`);
     return;
   }
 
   try {
-    // ⬅ Múltiplas evidências de qualquer tipo
-    const arquivos = [...$("venda-arquivo").files];
-    if (!arquivos.length) { mostrarToast("Anexe pelo menos uma evidência."); return; }
+    // ⬅ Múltiplas evidências (lista gerenciada: adicionar/remover)
+    const selecionadas = evidenciasSelecionadas.venda;
+    if (!selecionadas.length) { mostrarToast("Adicione pelo menos uma evidência."); return; }
     const evidencias = [];
-    for (const arq of arquivos) {
-      if (arq.size > LIMITE_ARQUIVO) { mostrarToast(`"${arq.name}" é muito grande (máx. 500 KB).`); return; }
-      const conteudo = await lerArquivoBruto(arq);
-      evidencias.push({ nome: arq.name, conteudo });
+    for (const sel of selecionadas) {
+      const conteudo = await lerArquivoBruto(sel.arquivo);
+      evidencias.push({ nome: sel.nome, conteudo });
     }
     const { error } = await supabase.from("vendas_casadas").insert([{
       loja_id: usuarioAtual.filial,
@@ -1209,12 +1248,39 @@ function abrirModalDetalheVendaLoja(id) {
     ? v.evidencias
     : (v.arquivo_nome ? [{ nome: v.arquivo_nome, conteudo: v.arquivo_conteudo }] : []);
 
-  let rodape = "";
+  // ⬅ BLOCO 1: PEDIDO ENVIADO
+  const blocoPedido = blocoFase("Pedido enviado", [
+    `<p class="text-[11px] text-slate-500"><strong>Enviado por:</strong> ${escapeHtml(v.usuario_nome || "você")} · ${dataHoraBr(v.data_envio)}</p>`,
+    `<div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 flex-wrap">
+      <span class="bg-white border border-slate-200 px-1.5 py-0.5 rounded-sm">Saída: ${nomeLoja(v.filial_saida)}</span>
+      <i class="fas fa-arrow-right text-slate-300 text-[9px]"></i>
+      <span class="bg-white border border-slate-200 px-1.5 py-0.5 rounded-sm">Destino: ${nomeLoja(v.filial_destino)}</span>
+    </div>`,
+    evidencias.length ? `<p class="text-[11px] text-slate-500"><i class="fas fa-paperclip text-slate-300 mr-1"></i>${evidencias.map((ev, i) => `<a href="#" onclick="event.preventDefault(); baixarEvidenciaVenda('${v.id}', ${i})" class="text-blue-700 font-bold">${escapeHtml(ev.nome)}</a>`).join(" · ")}</p>` : "",
+    v.obs ? `<p class="text-[11px] text-slate-500"><i class="fas fa-comment-dots text-indigo-300 mr-1"></i>${escapeHtml(v.obs)}</p>` : ""
+  ]);
+
+  // ⬅ BLOCO FINAL: RESPOSTA DO ADMIN (sempre por último)
+  let blocoResposta = "";
   if (v.status === "aprovado") {
-    rodape = `<p class="text-[11px] text-slate-500"><strong class="text-green-700">Concluído em:</strong> ${dataHoraBr(v.data_resposta)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(v.respondido_por || "Admin")}</p>`;
+    blocoResposta = `
+      <div>
+        <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Resposta do admin — APROVADO</span>
+        <div class="border border-green-200 bg-green-50 rounded-sm px-3 py-2 flex flex-col gap-1">
+          ${pedidos.length ? blocoPedidos(pedidos) : `<p class="text-[11px] text-green-700 italic">Sem pedidos registrados.</p>`}
+          <p class="text-[11px] text-green-700"><strong>Concluído em:</strong> ${dataHoraBr(v.data_resposta)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(v.respondido_por || "Admin")}</p>
+        </div>
+      </div>`;
   }
   if (v.status === "negado" || v.status === "negado_permanente") {
-    rodape = `<p class="text-[11px] text-slate-500"><strong class="text-red-600">${v.status === "negado_permanente" ? "Negado permanentemente em:" : "Negado em:"}</strong> ${dataHoraBr(v.data_resposta)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(v.respondido_por || "Admin")}</p>`;
+    blocoResposta = `
+      <div>
+        <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Resposta do admin — ${v.status === "negado_permanente" ? "NEGADO DEFINITIVAMENTE" : "NEGADO"}</span>
+        <div class="border border-red-200 bg-red-50 rounded-sm px-3 py-2 flex flex-col gap-1">
+          ${v.motivo_negacao ? `<p class="text-[11px] text-red-600"><i class="fas fa-ban text-red-300 mr-1"></i><strong>${escapeHtml(v.motivo_negacao)}</strong></p>` : ""}
+          <p class="text-[11px] text-red-600"><strong>${v.status === "negado_permanente" ? "Negado definitivamente em:" : "Negado em:"}</strong> ${dataHoraBr(v.data_resposta)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(v.respondido_por || "Admin")}</p>
+        </div>
+      </div>`;
   }
 
   const ajustesHtml = (Array.isArray(v.ajustes) && v.ajustes.length) ? `
@@ -1232,19 +1298,9 @@ function abrirModalDetalheVendaLoja(id) {
     <h2 class="text-lg font-bold text-slate-800 mb-1">Pedido avulso</h2>
     <div class="flex items-center gap-2 mb-3 flex-wrap">${badgeVendaLoja(v)}</div>
     <div class="flex flex-col gap-3">
-      ${blocoFase("Pedido enviado", [
-        `<div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 flex-wrap">
-          <span class="bg-white border border-slate-200 px-1.5 py-0.5 rounded-sm">Saída: ${nomeLoja(v.filial_saida)}</span>
-          <i class="fas fa-arrow-right text-slate-300 text-[9px]"></i>
-          <span class="bg-white border border-slate-200 px-1.5 py-0.5 rounded-sm">Destino: ${nomeLoja(v.filial_destino)}</span>
-        </div>`,
-        `<p class="text-[11px] text-slate-500"><i class="fas fa-paperclip text-slate-300 mr-1"></i>${evidencias.map((ev, i) => `<a href="#" onclick="event.preventDefault(); baixarEvidenciaVenda('${v.id}', ${i})" class="text-blue-700 font-bold">${escapeHtml(ev.nome)}</a>`).join(" · ") || "—"} <span class="text-slate-400">· ${dataHoraBr(v.data_envio)}</span></p>`,
-        v.obs ? `<p class="text-[11px] text-slate-500"><i class="fas fa-comment-dots text-indigo-300 mr-1"></i>${escapeHtml(v.obs)}</p>` : ""
-      ])}
-      ${pedidos.length ? `<div><span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Pedidos registrados</span>${blocoPedidos(pedidos)}</div>` : ""}
-      ${(v.status === "negado" || v.status === "negado_permanente") && v.motivo_negacao ? `<p class="text-[11px] text-red-600"><i class="fas fa-ban text-red-300 mr-1"></i><strong>${escapeHtml(v.motivo_negacao)}</strong></p>` : ""}
+      ${blocoPedido}
       ${ajustesHtml}
-      ${rodape}
+      ${blocoResposta}
     </div>
     ${v.status === "negado" ? `
     <div class="flex justify-end pt-3">
@@ -1290,7 +1346,8 @@ function abrirModalAjuste(id) {
   $("modal-ajuste-info").innerText = `Pedido avulso ${nomeLoja(v.filial_saida)} → ${nomeLoja(v.filial_destino)} · enviado em ${dataHoraBr(v.data_envio)}`;
   $("modal-ajuste-motivo").innerText = v.motivo_negacao ? `Pedida do admin: ${v.motivo_negacao}` : "";
   $("modal-ajuste-motivo").style.display = v.motivo_negacao ? "" : "none";
-  $("ajuste-arquivos").value = "";
+  evidenciasSelecionadas.ajuste = [];
+  renderizarEvidenciasSelecionadas("lista-evidencias-ajuste", "ajuste");
   $("ajuste-obs").value = "";
   $("msg-modal-ajuste").classList.add("hidden");
   $("modal-resposta-admin").classList.remove("hidden");
@@ -1308,18 +1365,17 @@ async function confirmarAjusteAvulso() {
   btn.disabled = true;
   btn.innerText = "Enviando...";
   try {
-    const arquivos = [...$("ajuste-arquivos").files];
+    const selecionadas = evidenciasSelecionadas.ajuste;
     const obs = $("ajuste-obs").value.trim();
-    if (!arquivos.length && !obs) {
-      $("msg-modal-ajuste").innerText = "Anexe algo ou escreva o que foi ajustado.";
+    if (!selecionadas.length && !obs) {
+      $("msg-modal-ajuste").innerText = "Adicione uma evidência ou escreva o que foi ajustado.";
       $("msg-modal-ajuste").classList.remove("hidden");
       return;
     }
     const evidencias = [];
-    for (const arq of arquivos) {
-      if (arq.size > LIMITE_ARQUIVO) { mostrarToast(`"${arq.name}" é muito grande (máx. 500 KB).`); return; }
-      const conteudo = await lerArquivoBruto(arq);
-      evidencias.push({ nome: arq.name, conteudo });
+    for (const sel of selecionadas) {
+      const conteudo = await lerArquivoBruto(sel.arquivo);
+      evidencias.push({ nome: sel.nome, conteudo });
     }
     const ajustes = [...(Array.isArray(v.ajustes) ? v.ajustes : []),
       { obs, evidencias, data: new Date().toISOString(), por: usuarioAtual.nome }];
@@ -1353,5 +1409,7 @@ Object.assign(window, {
   confirmarOkAutorizacao, confirmarRecusaAutorizacao,
   fecharModalDetalhe, abrirModalDetalheTransfLoja, abrirModalDetalheVendaLoja,
   abrirModalPedidoAvulso, fecharModalPedidoAvulso,
-  abrirModalAjuste, fecharModalAjuste, confirmarAjusteAvulso
+  abrirModalAjuste, fecharModalAjuste, confirmarAjusteAvulso,
+  adicionarEvidencia, removerEvidencia,
+  abrirModalAvisoRegra, fecharModalAvisoRegra
 });

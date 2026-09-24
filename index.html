@@ -270,14 +270,6 @@
                         <!-- Dia liberado para pedido avulso -->
                         <div id="card-dia-avulso" class="hidden bg-white border border-slate-200 rounded-sm p-5"></div>
 
-                        <!-- Autorizações pendentes comigo (só gestor/supervisor) -->
-                        <div class="bg-white border border-slate-200 rounded-sm p-5" id="card-autorizacoes">
-                            <h3 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4 flex items-center gap-2">
-                                <i class="fas fa-user-shield text-amber-500"></i> Autorizações pendentes com você
-                            </h3>
-                            <div id="lista-autorizacoes" class="flex flex-col gap-2"></div>
-                        </div>
-
                         <div class="bg-white border border-slate-200 rounded-sm p-5">
                             <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
                                 <h3 class="text-base font-bold text-slate-800">Meus pedidos avulsos</h3>
@@ -341,7 +333,7 @@
         <div class="bg-white rounded-sm shadow-xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <button onclick="fecharModalPedidoAvulso()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors text-2xl font-medium leading-none outline-none">&times;</button>
             <h2 class="text-lg font-bold text-slate-800 mb-1">Novo pedido avulso</h2>
-            <p class="text-xs text-slate-500 mb-4">Anexe as evidências (pode ser mais de um arquivo) e informe as filiais de saída e destino.</p>
+            <p class="text-xs text-slate-500 mb-4">Anexe as evidências (pode adicionar quantas quiser) e informe as filiais de saída e destino.</p>
 
             <form id="form-venda" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -379,9 +371,13 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Evidências (PDF, planilha, imagens — pode anexar várias)</label>
-                    <input type="file" id="venda-arquivo" multiple required
-                           class="w-full px-3 py-2 rounded border text-sm bg-slate-50 border-slate-200 text-slate-600 file:mr-3 file:py-1 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-blue-700 file:text-white file:cursor-pointer">
+                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Evidências (PDF, planilha, imagens — adicione quantas quiser)</label>
+                    <button type="button" onclick="document.getElementById('input-evidencia-venda').click()"
+                            class="w-full border border-dashed border-slate-300 hover:border-blue-400 hover:text-blue-700 text-slate-500 text-xs font-bold py-2.5 rounded-sm transition-colors">
+                        <i class="fas fa-plus mr-1"></i> Adicionar evidência
+                    </button>
+                    <input type="file" id="input-evidencia-venda" class="hidden" onchange="adicionarEvidencia(this, 'lista-evidencias-venda', 'venda')">
+                    <div id="lista-evidencias-venda" class="flex flex-col gap-1 mt-2"></div>
                 </div>
                 <div>
                     <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Observações (opcional)</label>
@@ -403,9 +399,13 @@
             <p id="modal-ajuste-info" class="text-xs text-slate-500 mb-3"></p>
             <p id="modal-ajuste-motivo" class="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-sm px-3 py-2 mb-3"></p>
 
-            <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Novas evidências (opcional, várias)</label>
-            <input type="file" id="ajuste-arquivos" multiple
-                   class="w-full px-3 py-2 rounded border text-sm bg-slate-50 border-slate-200 text-slate-600 file:mr-3 file:py-1 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-blue-700 file:text-white file:cursor-pointer">
+            <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Novas evidências (adicione quantas quiser)</label>
+            <button type="button" onclick="document.getElementById('input-evidencia-ajuste').click()"
+                    class="w-full border border-dashed border-slate-300 hover:border-blue-400 hover:text-blue-700 text-slate-500 text-xs font-bold py-2.5 rounded-sm transition-colors">
+                <i class="fas fa-plus mr-1"></i> Adicionar evidência
+            </button>
+            <input type="file" id="input-evidencia-ajuste" class="hidden" onchange="adicionarEvidencia(this, 'lista-evidencias-ajuste', 'ajuste')">
+            <div id="lista-evidencias-ajuste" class="flex flex-col gap-1 mt-2"></div>
 
             <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 mt-3">O que foi ajustado / observação</label>
             <textarea id="ajuste-obs" rows="3" placeholder="Ex.: ajustei a quantidade e anexei o orçamento corrigido"
@@ -418,33 +418,17 @@
         </div>
     </div>
 
-    <!-- ==================== MODAL: DETALHES DA AUTORIZAÇÃO ==================== -->
-    <div id="modal-autorizacao" class="fixed inset-0 bg-slate-900 bg-opacity-50 z-50 hidden flex justify-center items-center backdrop-blur-sm px-4">
-        <div class="bg-white rounded-sm shadow-xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <button onclick="fecharModalAutorizacao()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors text-2xl font-medium leading-none outline-none">&times;</button>
-            <h2 class="text-lg font-bold text-slate-800 mb-1">Autorização de pedido avulso</h2>
-            <p class="text-xs text-slate-500 mb-4">Analise o pedido completo antes de decidir.</p>
-
-            <div id="autorizacao-detalhes" class="flex flex-col gap-2 mb-4"></div>
-
-            <div class="border-t border-slate-100 pt-3 mb-4">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">Processo / autorizações</p>
-                <div id="autorizacao-processo" class="flex flex-col gap-1.5"></div>
+    <!-- ==================== MODAL: AVISO DE REGRA DE BLOQUEIO ==================== -->
+    <div id="modal-aviso-regra" class="fixed inset-0 bg-slate-900 bg-opacity-60 z-[70] hidden flex justify-center items-center backdrop-blur-sm px-4">
+        <div class="bg-white rounded-sm shadow-xl w-full max-w-sm p-6 relative text-center">
+            <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-ban text-xl"></i>
             </div>
-
-            <label class="block text-xs font-medium text-slate-700 mb-1">Justificativa <span class="text-slate-400">(obrigatória apenas se recusar)</span></label>
-            <textarea id="input-motivo-recusa" rows="2" placeholder="Ex.: sem saldo disponível para o item casado"
-                      class="w-full border border-slate-300 rounded-sm p-2.5 text-sm outline-none focus:border-blue-500"></textarea>
-            <p id="msg-modal-autorizacao" class="text-xs text-red-600 font-medium mt-2 hidden"></p>
-
-            <div class="flex gap-2 mt-4">
-                <button onclick="confirmarRecusaAutorizacao()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3 rounded-sm uppercase text-sm transition-colors">
-                    <i class="fas fa-times mr-1"></i> Recusar
-                </button>
-                <button onclick="confirmarOkAutorizacao()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 rounded-sm uppercase text-sm transition-colors">
-                    <i class="fas fa-check mr-1"></i> Autorizar
-                </button>
-            </div>
+            <h2 class="text-lg font-bold text-slate-800 mb-2">Transferência não permitida</h2>
+            <p id="aviso-regra-texto" class="text-sm text-slate-600 mb-5"></p>
+            <button onclick="fecharModalAvisoRegra()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-3 rounded-sm uppercase text-sm transition-colors">
+                Ok, ciente
+            </button>
         </div>
     </div>
 

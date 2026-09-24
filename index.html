@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transferências — Climario</title>
+    <title>Transferências — Painel da Loja</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -39,8 +39,8 @@
     <div id="tela-login" class="w-full h-screen flex fixed inset-0 z-50 bg-white">
 
         <!-- Painel esquerdo -->
-        <div class="relative flex-1 overflow-hidden hidden md:block" style="background: url('./ilustracao logistica.png') center/cover no-repeat;">
-            <div class="absolute inset-0" style="background: linear-gradient(to bottom, rgba(10,22,40,.75) 0%, rgba(10,22,40,.25) 55%, rgba(10,22,40,.55) 100%);"></div>
+        <div class="relative flex-1 overflow-hidden hidden md:block" style="background: linear-gradient(150deg, #0a1628 0%, #1a3254 55%, #0f172a 100%);">
+            <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 20% 30%, #1d4ed8 0%, transparent 40%), radial-gradient(circle at 80% 70%, #3b82f6 0%, transparent 35%);"></div>
             <div class="relative z-10 h-full flex flex-col justify-between p-10">
                 <div>
                     <div style="width: 3px; height: 40px; background: #3b82f6; border-radius: 2px; margin-bottom: 1.5rem;"></div>
@@ -50,7 +50,7 @@
                 </div>
                 <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded w-fit" style="background: rgba(10,22,40,0.55); backdrop-filter: blur(6px); border: 0.5px solid rgba(255,255,255,0.12);">
                     <div style="width: 6px; height: 6px; background: #22c55e; border-radius: 50%; flex-shrink: 0;"></div>
-                    <span class="text-xs text-slate-300 font-medium">Sistema Interno Climario</span>
+                    <span class="text-xs text-slate-300 font-medium">Acesso das Lojas</span>
                 </div>
             </div>
         </div>
@@ -84,7 +84,7 @@
                     </button>
                 </form>
             </div>
-            <p class="text-[10.5px] text-slate-500 text-right pt-4 border-t border-slate-100">Desenvolvido por Breno Dobroski</p>
+            <p class="text-[10.5px] text-slate-500 text-right pt-4 border-t border-slate-100">Painel da Loja · Transferências Clima Rio</p>
         </div>
     </div>
 
@@ -232,19 +232,18 @@
                     <!-- ===== ABA: SUGESTÕES ===== -->
                     <section id="secao-sugestoes" class="hidden space-y-6">
 
-                        <div class="bg-blue-50 border border-blue-200 rounded-sm p-4 flex items-start gap-3">
-                            <i class="fas fa-info-circle text-blue-700 mt-0.5"></i>
-                            <div class="text-xs text-blue-800 leading-relaxed">
-                                <p class="font-bold mb-1">Como responder uma sugestão:</p>
-                                <ol class="list-decimal ml-4 space-y-0.5">
-                                    <li><strong>Baixe a planilha enviada pelo admin</strong> — o envio só é liberado após o download.</li>
-                                    <li>Faça as alterações que desejar na planilha.</li>
-                                    <li>Envie a planilha alterada de volta e aguarde o número do pedido.</li>
-                                </ol>
+                        <div class="bg-white border border-slate-200 rounded-sm p-5">
+                            <div class="py-16 flex flex-col items-center justify-center text-center">
+                                <div class="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
+                                    <i class="fas fa-clock text-2xl"></i>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-800 mb-1">Em breve</h3>
+                                <p class="text-xs text-slate-400 max-w-xs">As sugestões de transferência estarão disponíveis em uma próxima fase do projeto.</p>
                             </div>
                         </div>
 
-                        <div class="bg-white border border-slate-200 rounded-sm p-5">
+                        <!-- Lista (mantida oculta — a aba está "em breve") -->
+                        <div class="bg-white border border-slate-200 rounded-sm p-5 hidden">
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
                                 <h3 class="text-base font-bold text-slate-800">Sugestões recebidas</h3>
                                 <div class="relative custom-dropdown w-full sm:w-64" id="dropdown-filtro-status-sug">
@@ -267,6 +266,9 @@
 
                     <!-- ===== ABA: PEDIDOS AVULSOS ===== -->
                     <section id="secao-vendas" class="hidden space-y-6">
+
+                        <!-- Dia liberado para pedido avulso -->
+                        <div id="card-dia-avulso" class="hidden bg-white border border-slate-200 rounded-sm p-5"></div>
 
                         <!-- Autorizações pendentes comigo (só gestor/supervisor) -->
                         <div class="bg-white border border-slate-200 rounded-sm p-5" id="card-autorizacoes">
@@ -293,7 +295,7 @@
                                         </div>
                                         <input type="hidden" id="input-filtro-status-venda" value="">
                                     </div>
-                                    <button onclick="abrirModalPedidoAvulso()" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-sm text-xs font-bold uppercase tracking-wide transition-colors whitespace-nowrap flex items-center justify-center flex-shrink-0">
+                                    <button id="btn-novo-avulso" onclick="abrirModalPedidoAvulso()" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-sm text-xs font-bold uppercase tracking-wide transition-colors whitespace-nowrap flex items-center justify-center flex-shrink-0">
                                         <i class="fas fa-plus mr-1"></i> Novo pedido avulso
                                     </button>
                                 </div>
@@ -339,7 +341,7 @@
         <div class="bg-white rounded-sm shadow-xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <button onclick="fecharModalPedidoAvulso()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors text-2xl font-medium leading-none outline-none">&times;</button>
             <h2 class="text-lg font-bold text-slate-800 mb-1">Novo pedido avulso</h2>
-            <p class="text-xs text-slate-500 mb-4">Anexe o PDF do pedido aprovado e informe as filiais de saída e destino.</p>
+            <p class="text-xs text-slate-500 mb-4">Anexe as evidências (pode ser mais de um arquivo) e informe as filiais de saída e destino.</p>
 
             <form id="form-venda" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -377,8 +379,8 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">PDF do pedido aprovado</label>
-                    <input type="file" id="venda-arquivo" accept="application/pdf" required
+                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Evidências (PDF, planilha, imagens — pode anexar várias)</label>
+                    <input type="file" id="venda-arquivo" multiple required
                            class="w-full px-3 py-2 rounded border text-sm bg-slate-50 border-slate-200 text-slate-600 file:mr-3 file:py-1 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-blue-700 file:text-white file:cursor-pointer">
                 </div>
                 <div>
@@ -390,6 +392,29 @@
                     <i class="fas fa-paper-plane mr-2"></i> Enviar pedido avulso
                 </button>
             </form>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: RESPONDER AO ADMIN (AJUSTE) ==================== -->
+    <div id="modal-resposta-admin" class="fixed inset-0 bg-slate-900 bg-opacity-50 z-[60] hidden flex justify-center items-center backdrop-blur-sm px-4">
+        <div class="bg-white rounded-sm shadow-xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onclick="fecharModalAjuste()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors text-2xl font-medium leading-none outline-none">&times;</button>
+            <h2 class="text-lg font-bold text-slate-800 mb-1">Responder ao admin</h2>
+            <p id="modal-ajuste-info" class="text-xs text-slate-500 mb-3"></p>
+            <p id="modal-ajuste-motivo" class="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-sm px-3 py-2 mb-3"></p>
+
+            <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Novas evidências (opcional, várias)</label>
+            <input type="file" id="ajuste-arquivos" multiple
+                   class="w-full px-3 py-2 rounded border text-sm bg-slate-50 border-slate-200 text-slate-600 file:mr-3 file:py-1 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-blue-700 file:text-white file:cursor-pointer">
+
+            <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 mt-3">O que foi ajustado / observação</label>
+            <textarea id="ajuste-obs" rows="3" placeholder="Ex.: ajustei a quantidade e anexei o orçamento corrigido"
+                      class="w-full px-3 py-2.5 rounded border text-sm outline-none transition-all bg-slate-50 border-slate-200 focus:ring-2 focus:ring-blue-700/20 focus:border-blue-700"></textarea>
+
+            <p id="msg-modal-ajuste" class="text-xs text-red-600 font-medium mt-2 hidden"></p>
+            <button onclick="confirmarAjusteAvulso()" id="btn-confirmar-ajuste" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-medium py-3 rounded-sm uppercase text-sm mt-4 transition-colors">
+                Enviar ajuste
+            </button>
         </div>
     </div>
 

@@ -7,7 +7,6 @@ const SUPABASE_URL = "https://dwmijhwfhocfabwmppcc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FqBFg4MmpasHAZ_RNjobYQ_6FqEQyG1";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const LS_VENDAS = "trf_vendas_casadas_v2"; // vendas casadas ainda locais (por enquanto)
 const LIMITE_ARQUIVO = 500 * 1024;
 
 const DIAS_SEMANA = [
@@ -17,106 +16,20 @@ const DIAS_SEMANA = [
   { n: 0, label: "Domingo" }
 ];
 
-/* FILIAIS vêm da tabela "filiais" do Supabase (o admin gerencia no painel dele).
-   Têm leitura pública — funcionam até no cadastro, antes do login. */
-
 let usuarioAtual = null; // linha da tabela usuarios
 let filiais = [];
 let transferenciasCache = {};
 let vendasCache = {};
 let transferenciaEmEdicao = null;
+let diaLiberado = null;
+let regrasCache = [];
+let ajusteVendaId = null;
 
 /* ⬇ Permissões por role ⬇
-   gestor / supervisor → veem sugestões + todas as vendas da filial + autorizações
+   gestor / supervisor → veem sugestões + todos os pedidos avulsos da filial + autorizações
    vendedor (e demais) → NÃO veem sugestões, só os próprios pedidos avulsos */
 function ehGestor() {
   return ["gestor", "supervisor"].includes(usuarioAtual?.role);
-}
-
-/* ⬇ Filtros das listas (por situação) */
-let filtroStatusSug = "";
-let filtroStatusVenda = "";
-
-function renderizarFiltrosLoja() {
-  preencherDropdown("filtro-status-sug", [
-    { valor: "", texto: "Todas as situações" },
-    { valor: "sugerido", texto: "Novas (aguardando sua resposta)" },
-    { valor: "respondido", texto: "Respondidas (aguardando pedido)" },
-    { valor: "pedido", texto: "Finalizadas" }
-  ], filtroStatusSug);
-  preencherDropdown("filtro-status-venda", [
-    { valor: "", texto: "Todas as situações" },
-    { valor: "pendente", texto: "Aguardando retorno do admin" },
-    { valor: "aguardando_autorizacoes", texto: "Aguardando autorizações" },
-    { valor: "aprovado", texto: "Aprovados" },
-    { valor: "negado", texto: "Negados" }
-  ], filtroStatusVenda);
-}
-
-document.addEventListener("change", e => {
-  const alvo = e.target;
-  if (!alvo.id) return;
-  if (alvo.id === "input-filtro-status-sug") {
-    filtroStatusSug = alvo.value;
-    renderizarTransferencias();
-  } else if (alvo.id === "input-filtro-status-venda") {
-    filtroStatusVenda = alvo.value;
-    renderizarVendas();
-  }
-});
-
-/* ⬇ Helpers reutilizáveis (badges + blocos do modal de detalhes) */
-function badgeTransfLoja(t) {
-  if (t.status === "pedido")
-    return `<span class="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-check-circle mr-1"></i> Finalizado</span>`;
-  if (t.status === "respondido")
-    return `<span class="text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-paper-plane mr-1"></i> Respondida</span>`;
-  return `<span class="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-inbox mr-1"></i> Nova sugestão</span>`;
-}
-
-function badgeVendaLoja(v) {
-  if (v.status === "aprovado")
-    return `<span class="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-check-circle mr-1"></i> Aprovado</span>`;
-  if (v.status === "negado")
-    return `<span class="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-times-circle mr-1"></i> Negado</span>`;
-  if (v.status === "aguardando_autorizacoes")
-    return `<span class="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-user-shield mr-1"></i> Aguardando autorizações</span>`;
-  return `<span class="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-hourglass-half mr-1"></i> Aguardando retorno</span>`;
-}
-
-function blocoPedidos(pedidos) {
-  return `<div class="rounded-sm border border-green-200 bg-green-50 px-2.5 py-2 flex flex-col gap-0.5">
-    ${pedidos.map(p => `<p class="text-[11px] text-green-800"><strong class="font-mono">${escapeHtml(p.numero)}</strong>${p.obs ? ` <span class="text-green-700">— ${escapeHtml(p.obs)}</span>` : ""}</p>`).join("")}
-  </div>`;
-}
-
-function linhaDetalhe(rotulo, html) {
-  return `<div><span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-0.5">${rotulo}</span><div class="text-[12px] text-slate-600">${html}</div></div>`;
-}
-function blocoFase(titulo, linhas) {
-  const conteudo = linhas.filter(Boolean).join("");
-  if (!conteudo) return "";
-  return `<div>
-    <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">${titulo}</span>
-    <div class="border border-slate-200 bg-slate-50/60 rounded-sm px-3 py-2 flex flex-col gap-1">${conteudo}</div>
-  </div>`;
-}
-
-
-let detalheAbertoId = null;
-let detalheAbertoTipo = null; // "transf" | "venda"
-
-function fecharModalDetalhe() {
-  $("modal-detalhe").classList.add("hidden");
-  detalheAbertoId = null;
-  detalheAbertoTipo = null;
-}
-
-/* ⬅ Re-renderiza o modal de detalhes que está aberto (ex.: após baixar/responder) */
-function atualizarModalDetalhe() {
-  if (!detalheAbertoId) return;
-  if (detalheAbertoTipo === "transf") abrirModalDetalheTransfLoja(detalheAbertoId);
-  else abrirModalDetalheVendaLoja(detalheAbertoId);
 }
 
 /* ---------- Utilitários ---------- */
@@ -155,6 +68,24 @@ function lerArquivo(inputFile) {
     reader.onerror = () => reject(new Error("Falha ao ler o arquivo."));
     reader.readAsDataURL(arquivo);
   });
+}
+
+function lerArquivoBruto(arquivo) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Falha ao ler " + arquivo.name));
+    reader.readAsDataURL(arquivo);
+  });
+}
+
+async function carregarExtras() {
+  const [{ data: regras }, { data: cfg }] = await Promise.all([
+    supabase.from("regras_bloqueio").select("*"),
+    supabase.from("configuracoes").select("valor").eq("chave", "dia_pedido_avulso").maybeSingle()
+  ]);
+  regrasCache = regras || [];
+  diaLiberado = cfg?.valor ?? null;
 }
 
 function baixarArquivo(nome, conteudoDataUrl) {
@@ -279,11 +210,9 @@ $("form-cadastro").addEventListener("submit", async e => {
   btn.innerText = "Enviando...";
 
   try {
-    // 1. Cria a conta de autenticação
     const { data, error } = await supabase.auth.signUp({ email, password: senha });
     if (error) throw error;
 
-    // 2. Cria o perfil com role "pendente" (aguardando aprovação do admin)
     const { error: erroPerfil } = await supabase.from("usuarios").insert([{
       id: data.user.id,
       nome,
@@ -338,8 +267,6 @@ $("login-form").addEventListener("submit", async e => {
 
     if (erroPerfil || !perfil) throw new Error("Perfil não encontrado. Contate o administrador.");
     if (perfil.role === "pendente") throw new Error("Seu cadastro ainda está aguardando aprovação do administrador.");
-    // Qualquer usuário aprovado (gestor, supervisor, vendedor, administrativo, admin)
-    // entra no app da loja — os dados são filtrados pela filial dele.
 
     usuarioAtual = perfil;
     await entrarNoApp();
@@ -361,7 +288,6 @@ async function entrarNoApp() {
   $("perfil-iniciais").innerText = usuarioAtual.nome.substring(0, 2).toUpperCase();
   $("topbar-loja").innerText = nomeLoja(usuarioAtual.filial);
 
-  // ⬅ Vendedor não vê a aba Sugestões (só gestor/supervisor)
   $("btn-aba-sugestoes").classList.toggle("hidden", !ehGestor());
 
   $("tela-login").classList.add("hidden");
@@ -388,6 +314,7 @@ async function sairDoSistema() {
 // Sessão persistida pelo Supabase — entra direto se já estiver logado
 (async () => {
   await carregarFiliais(); // filiais têm leitura pública (necessário p/ o cadastro)
+  await carregarExtras();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
   const { data: perfil } = await supabase.from("usuarios").select("*").eq("id", session.user.id).single();
@@ -435,8 +362,8 @@ function mudarAba(aba) {
 
   const titulos = {
     inicio:    ["Início", "Visão geral das suas transferências."],
-    sugestoes: ["Sugestões de Transferência", "Baixe a planilha enviada pelo admin, faça as alterações e devolva."],
-    vendas:    ["Pedidos Avulsos", "Envie pedidos avulsos com o PDF aprovado e acompanhe o retorno do admin."]
+    sugestoes: ["Sugestões de Transferência", "Disponível em breve."],
+    vendas:    ["Pedidos Avulsos", "Envie pedidos avulsos com evidências e acompanhe o retorno do admin."]
   };
   $("titulo-pagina").innerText = titulos[aba][0];
   $("subtitulo-pagina").innerText = titulos[aba][1];
@@ -447,6 +374,8 @@ function mudarAba(aba) {
 async function atualizarTudo(mostrarAviso = false) {
   await carregarTransferencias();
   await carregarVendasSupabase();
+  await carregarExtras();
+  renderizarDiaAvulso();
   renderizarFiltrosLoja();
   renderizarInicio();
   renderizarTransferencias();
@@ -473,7 +402,6 @@ async function carregarTransferencias() {
 let canalRealtime = null;
 
 function iniciarRealtime() {
-  // ⬅ Guarda: evita "cannot add callbacks after subscribe()" se for chamado de novo
   if (canalRealtime) return;
   canalRealtime = supabase.channel("loja-realtime-" + usuarioAtual.filial);
 
@@ -493,7 +421,6 @@ function iniciarRealtime() {
     .on("postgres_changes",
       { event: "*", schema: "public", table: "filiais" },
       () => {
-        // ⬅ Admin adicionou/removeu filial → dropdowns atualizam na hora
         carregarFiliais();
       })
     .on("postgres_changes",
@@ -508,6 +435,16 @@ function iniciarRealtime() {
       { event: "*", schema: "public", table: "autorizacoes_venda", filter: `usuario_id=eq.${usuarioAtual.id}` },
       () => {
         carregarVendasSupabase().then(renderizarVendas);
+      })
+    .on("postgres_changes",
+      { event: "*", schema: "public", table: "configuracoes" },
+      () => {
+        carregarExtras().then(renderizarDiaAvulso);
+      })
+    .on("postgres_changes",
+      { event: "*", schema: "public", table: "regras_bloqueio" },
+      () => {
+        carregarExtras();
       })
     .subscribe();
 }
@@ -527,7 +464,7 @@ function statusSugestaoAtual() {
 
   if (recentes.length === 0) return { txt: "Nenhuma sugestão enviada no período", cor: "red" };
   const t = recentes[0];
-  if (t.status === "pedido")     return { txt: `Pedido ${t.numero_pedido} registrado`, cor: "green" };
+  if (t.status === "pedido")     return { txt: "Pedido feito", cor: "green" };
   if (t.status === "respondido") return { txt: "Sua resposta foi devolvida — aguardando pedido", cor: "sky" };
   return { txt: "Nova sugestão aguardando sua resposta", cor: "amber" };
 }
@@ -535,12 +472,12 @@ function statusSugestaoAtual() {
 async function renderizarInicio() {
   const vendas = Object.values(vendasCache);
 
-  // ⬅ Início do VENDEDOR: só vendas casadas, sem sugestões/agenda
+  // ⬅ Início do VENDEDOR: só pedidos avulsos
   if (!ehGestor()) {
     const pendentes = vendas.filter(v => v.status === "pendente").length;
     const aguardandoAut = vendas.filter(v => v.status === "aguardando_autorizacoes").length;
     const aprovadas = vendas.filter(v => v.status === "aprovado").length;
-    const negadas = vendas.filter(v => v.status === "negado").length;
+    const negadas = vendas.filter(v => v.status === "negado" || v.status === "negado_permanente").length;
 
     const card = (numero, rotulo, cor, icone) => `
       <div class="bg-white border border-slate-200 rounded-sm p-5 border-t-4 ${cor}">
@@ -554,8 +491,8 @@ async function renderizarInicio() {
     $("cards-resumo").innerHTML =
       card(pendentes, "aguardando admin", "border-t-indigo-400", "fa-hourglass-half") +
       card(aguardandoAut, "aguardando autorizações", "border-t-amber-400", "fa-user-shield") +
-      card(aprovadas, "aprovadas", "border-t-green-500", "fa-check-circle") +
-      card(negadas, "negadas", "border-t-red-400", "fa-times-circle");
+      card(aprovadas, "aprovados", "border-t-green-500", "fa-check-circle") +
+      card(negadas, "negados", "border-t-red-400", "fa-times-circle");
 
     renderizarAtividade([], vendas);
     return;
@@ -581,7 +518,7 @@ async function renderizarInicio() {
     card(novas, "novas sugestões", "border-t-amber-400", "fa-inbox") +
     card(devolvidas, "aguardando pedido", "border-t-sky-400", "fa-paper-plane") +
     card(pedidos, "pedidos registrados", "border-t-green-500", "fa-check-circle") +
-    card(vendasPendentes, "vendas casadas pendentes", "border-t-indigo-400", "fa-box-open");
+    card(vendasPendentes, "pedidos avulsos pendentes", "border-t-indigo-400", "fa-box-open");
 
   renderizarMinhaAgenda();
   renderizarAtividade(transf, vendas);
@@ -637,7 +574,7 @@ function renderizarAtividade(transf, vendas) {
     if (ev.tipo === "transf") {
       const t = ev.item;
       const statusTxt =
-        t.status === "pedido" ? `Pedido ${escapeHtml(t.numero_pedido)} registrado` :
+        t.status === "pedido" ? "Pedido feito" :
         t.status === "respondido" ? "Você devolveu a planilha" : "Nova sugestão recebida";
       const corTexto =
         t.status === "pedido" ? "text-green-700" :
@@ -656,22 +593,23 @@ function renderizarAtividade(transf, vendas) {
         </div>`;
     }
     const v = ev.item;
-    const encerrado = v.status === "aprovado" || v.status === "negado";
     const txtStatus =
-      v.status === "aprovado" ? "Aprovada pelo admin" :
-      v.status === "negado" ? "Negada pelo admin" :
+      v.status === "aprovado" ? "Aprovado" :
+      v.status === "negado" ? "Negado" :
+      v.status === "negado_permanente" ? "Negado permanente" :
       v.status === "aguardando_autorizacoes" ? "Aguardando autorizações" :
       "Aguardando retorno do admin";
     const corStatus =
       v.status === "aprovado" ? "text-green-700 border-l-green-600" :
       v.status === "negado" ? "text-red-600 border-l-red-500" :
+      v.status === "negado_permanente" ? "text-red-800 border-l-red-700" :
       v.status === "aguardando_autorizacoes" ? "text-amber-700 border-l-amber-400" :
       "text-indigo-700 border-l-indigo-400";
     return `
       <div class="flex justify-between items-center gap-3 py-3 border-b border-slate-100 last:border-0 flex-wrap">
         <div>
           <span class="text-sm font-bold text-slate-800">Pedido avulso ${nomeLoja(v.filial_saida)} → ${nomeLoja(v.filial_destino)}</span>
-          <span class="text-[10px] font-bold text-slate-400 uppercase ml-2">enviada</span>
+          <span class="text-[10px] font-bold text-slate-400 uppercase ml-2">enviado</span>
           <span class="text-xs text-slate-400 ml-2">${dataHoraBr(v.data_envio)}</span>
         </div>
         <span class="text-[11px] font-bold uppercase tracking-wide ${corStatus} border-l-4 pl-2">${txtStatus}</span>
@@ -680,13 +618,102 @@ function renderizarAtividade(transf, vendas) {
 }
 
 /* =========================================================
-   ABA: SUGESTÕES — baixar obrigatório antes de responder
+   ABA: SUGESTÕES (em breve — código preservado)
    ========================================================= */
+let filtroStatusSug = "";
+
+function renderizarFiltrosLoja() {
+  preencherDropdown("filtro-status-sug", [
+    { valor: "", texto: "Todas as situações" },
+    { valor: "sugerido", texto: "Novas (aguardando sua resposta)" },
+    { valor: "respondido", texto: "Respondidas (aguardando pedido)" },
+    { valor: "pedido", texto: "Finalizadas" }
+  ], filtroStatusSug);
+  preencherDropdown("filtro-status-venda", [
+    { valor: "", texto: "Todas as situações" },
+    { valor: "pendente", texto: "Aguardando retorno do admin" },
+    { valor: "aguardando_autorizacoes", texto: "Aguardando autorizações" },
+    { valor: "aprovado", texto: "Aprovados" },
+    { valor: "negado", texto: "Negados" },
+    { valor: "negado_permanente", texto: "Negados permanentemente" }
+  ], filtroStatusVenda);
+}
+
+let filtroStatusVenda = "";
+
+document.addEventListener("change", e => {
+  const alvo = e.target;
+  if (!alvo.id) return;
+  if (alvo.id === "input-filtro-status-sug") {
+    filtroStatusSug = alvo.value;
+    renderizarTransferencias();
+  } else if (alvo.id === "input-filtro-status-venda") {
+    filtroStatusVenda = alvo.value;
+    renderizarVendas();
+  }
+});
+
+/* ⬇ Helpers reutilizáveis (badges + blocos do modal de detalhes) */
+function badgeTransfLoja(t) {
+  if (t.status === "pedido")
+    return `<span class="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-check-circle mr-1"></i> Finalizado</span>`;
+  if (t.status === "respondido")
+    return `<span class="text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-paper-plane mr-1"></i> Respondida</span>`;
+  return `<span class="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-inbox mr-1"></i> Nova sugestão</span>`;
+}
+
+function badgeVendaLoja(v) {
+  if (v.status === "aprovado")
+    return `<span class="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-check-circle mr-1"></i> Aprovado</span>`;
+  if (v.status === "negado_permanente")
+    return `<span class="text-[11px] font-bold text-red-800 bg-red-100 border border-red-300 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-ban mr-1"></i> Negado permanente</span>`;
+  if (v.status === "negado")
+    return `<span class="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-times-circle mr-1"></i> Negado</span>`;
+  if (v.status === "aguardando_autorizacoes")
+    return `<span class="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-user-shield mr-1"></i> Aguardando autorizações</span>`;
+  return `<span class="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-sm whitespace-nowrap"><i class="fas fa-hourglass-half mr-1"></i> Aguardando retorno</span>`;
+}
+
+function blocoPedidos(pedidos) {
+  return `<div class="rounded-sm border border-green-200 bg-green-50 px-2.5 py-2 flex flex-col gap-0.5">
+    ${pedidos.map(p => `<p class="text-[11px] text-green-800"><strong class="font-mono">${escapeHtml(p.numero)}</strong>${p.obs ? ` <span class="text-green-700">— ${escapeHtml(p.obs)}</span>` : ""}</p>`).join("")}
+  </div>`;
+}
+
+function linhaDetalhe(rotulo, html) {
+  return `<div><span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-0.5">${rotulo}</span><div class="text-[12px] text-slate-600">${html}</div></div>`;
+}
+function blocoFase(titulo, linhas) {
+  const conteudo = linhas.filter(Boolean).join("");
+  if (!conteudo) return "";
+  return `<div>
+    <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">${titulo}</span>
+    <div class="border border-slate-200 bg-slate-50/60 rounded-sm px-3 py-2 flex flex-col gap-1">${conteudo}</div>
+  </div>`;
+}
+
+let detalheAbertoId = null;
+let detalheAbertoTipo = null; // "transf" | "venda"
+
+function fecharModalDetalhe() {
+  $("modal-detalhe").classList.add("hidden");
+  detalheAbertoId = null;
+  detalheAbertoTipo = null;
+}
+
+/* ⬅ Re-renderiza o modal de detalhes que está aberto (ex.: após baixar/responder) */
+function atualizarModalDetalhe() {
+  if (!detalheAbertoId) return;
+  if (detalheAbertoTipo === "transf") abrirModalDetalheTransfLoja(detalheAbertoId);
+  else abrirModalDetalheVendaLoja(detalheAbertoId);
+}
+
 function renderizarTransferencias() {
+  const container = $("lista-transferencias");
+  if (!container) return;
   let lista = Object.values(transferenciasCache)
     .sort((a, b) => new Date(b.data_envio) - new Date(a.data_envio));
   if (filtroStatusSug) lista = lista.filter(t => t.status === filtroStatusSug);
-  const container = $("lista-transferencias");
 
   if (lista.length === 0) {
     container.innerHTML = `<p class="py-8 text-center text-slate-400 italic text-sm">${filtroStatusSug ? "Nenhuma sugestão nesta situação." : "Nenhuma sugestão recebida no momento."}</p>`;
@@ -771,7 +798,6 @@ async function baixarTransfPorId(id, tipo) {
   if (!t) return;
   if (tipo === "sugestao" && t.arquivo_conteudo) {
     baixarArquivo(t.arquivo_nome, t.arquivo_conteudo);
-    // ⬅️ Libera o botão de responder (salva no Supabase — o admin vê em tempo real)
     if (!t.baixado_pela_loja) {
       const { error } = await supabase.from("sugestoes")
         .update({ baixado_pela_loja: true })
@@ -779,7 +805,7 @@ async function baixarTransfPorId(id, tipo) {
       if (!error) {
         t.baixado_pela_loja = true;
         renderizarTransferencias();
-        atualizarModalDetalhe(); // ⬅ atualiza o modal aberto: libera o envio na hora
+        atualizarModalDetalhe();
         mostrarToast("Planilha baixada! Agora você pode enviar sua resposta.");
       }
     }
@@ -815,7 +841,7 @@ async function confirmarResposta() {
   const btn = $("btn-confirmar-resposta");
   btn.disabled = true;
   btn.innerText = "Enviando...";
-  const idRespondida = transferenciaEmEdicao; // ⬅ captura antes de fechar
+  const idRespondida = transferenciaEmEdicao;
   try {
     const arquivo = await lerArquivo($("resposta-arquivo"));
     const t = transferenciasCache[transferenciaEmEdicao];
@@ -836,7 +862,7 @@ async function confirmarResposta() {
     fecharModalResposta();
     renderizarInicio();
     renderizarTransferencias();
-    detalheAbertoId = idRespondida;   // ⬅ reabre/atualiza o detalhe por cima
+    detalheAbertoId = idRespondida;
     detalheAbertoTipo = "transf";
     atualizarModalDetalhe();
     mostrarToast("Planilha respondida enviada ao admin.");
@@ -850,7 +876,7 @@ async function confirmarResposta() {
 }
 
 /* =========================================================
-   ABA: VENDAS CASADAS (ainda local — será migrada depois)
+   ABA: PEDIDOS AVULSOS
    ========================================================= */
 function renderizarDropdownsVenda() {
   preencherDropdown(
@@ -861,10 +887,62 @@ function renderizarDropdownsVenda() {
   );
   preencherDropdown(
     "venda-destino",
-    filiais.map(f => ({ valor: f.id, texto: f.nome })),   // ⬅ inclui a PRÓPRIA filial: posso tirar de X para a minha
+    filiais.map(f => ({ valor: f.id, texto: f.nome })),   // ⬅ inclui a PRÓPRIA filial
     "",
     "— Selecione —"
   );
+}
+
+/* ⬇ Dia liberado para pedido avulso */
+function proximoDiaInfo() {
+  if (!diaLiberado) return null;
+  const alvo = parseInt(diaLiberado);
+  const hoje = new Date();
+  const diff = (alvo - hoje.getDay() + 7) % 7;
+  const prox = new Date(hoje); prox.setDate(hoje.getDate() + diff);
+  return {
+    hoje: diff === 0,
+    label: DIAS_SEMANA.find(d => d.n === alvo)?.label || "",
+    dataTxt: prox.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+  };
+}
+
+function renderizarDiaAvulso() {
+  const card = $("card-dia-avulso");
+  const btn = $("btn-novo-avulso");
+  const info = proximoDiaInfo();
+  if (card) {
+    if (!info) {
+      card.classList.add("hidden");
+    } else {
+      card.classList.remove("hidden");
+      card.innerHTML = info.hoje
+        ? `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded bg-green-100 text-green-700 flex items-center justify-center flex-shrink-0"><i class="fas fa-calendar-check"></i></div><div><p class="text-sm font-bold text-slate-800">Hoje é dia de pedido avulso!</p><p class="text-xs text-slate-400">Você pode registrar seus pedidos avulsos hoje.</p></div></div>`
+        : `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0"><i class="fas fa-calendar-day"></i></div><div><p class="text-sm font-bold text-slate-800">Próximo dia para pedido avulso: <span class="text-blue-700">${info.label}, ${info.dataTxt}</span></p><p class="text-xs text-slate-400">Organize-se e deixe as evidências prontas com antecedência.</p></div></div>`;
+    }
+  }
+  if (btn) {
+    const liberado = !info || info.hoje;
+    btn.disabled = !liberado;
+    btn.classList.toggle("opacity-40", !liberado);
+    btn.classList.toggle("cursor-not-allowed", !liberado);
+  }
+}
+
+/* ⬇ Modal Novo Pedido Avulso */
+function abrirModalPedidoAvulso() {
+  const info = proximoDiaInfo();
+  if (info && !info.hoje) {
+    mostrarToast(`Hoje não é dia de pedido avulso. Próximo: ${info.label} (${info.dataTxt}).`);
+    return;
+  }
+  $("form-venda").reset();
+  renderizarDropdownsVenda();
+  $("modal-pedido-avulso").classList.remove("hidden");
+}
+
+function fecharModalPedidoAvulso() {
+  $("modal-pedido-avulso").classList.add("hidden");
 }
 
 $("form-venda").addEventListener("submit", async e => {
@@ -876,17 +954,39 @@ $("form-venda").addEventListener("submit", async e => {
   if (!destino) { mostrarToast("Selecione a filial de destino."); return; }
   if (saida === destino) { mostrarToast("Filial de saída e destino não podem ser iguais."); return; }
 
+  // ⬅ Dia liberado para pedidos avulsos
+  const info = proximoDiaInfo();
+  if (info && !info.hoje) {
+    mostrarToast(`Hoje não é dia de pedido avulso. Próximo: ${info.label} (${info.dataTxt}).`);
+    return;
+  }
+
+  // ⬅ Regras de bloqueio de transferência
+  const regra = regrasCache.find(r => r.filial_saida === saida && r.filial_destino === destino);
+  if (regra) {
+    mostrarToast(`Não pode ocorrer transferências entre essas filiais${regra.motivo ? ": " + regra.motivo : ""}.`);
+    return;
+  }
+
   try {
-    const arquivo = await lerArquivo($("venda-arquivo"));
-    // ⬇ Grava no SUPABASE — se aparecer na tela, está garantido no banco (e no painel admin)
+    // ⬅ Múltiplas evidências de qualquer tipo
+    const arquivos = [...$("venda-arquivo").files];
+    if (!arquivos.length) { mostrarToast("Anexe pelo menos uma evidência."); return; }
+    const evidencias = [];
+    for (const arq of arquivos) {
+      if (arq.size > LIMITE_ARQUIVO) { mostrarToast(`"${arq.name}" é muito grande (máx. 500 KB).`); return; }
+      const conteudo = await lerArquivoBruto(arq);
+      evidencias.push({ nome: arq.name, conteudo });
+    }
     const { error } = await supabase.from("vendas_casadas").insert([{
       loja_id: usuarioAtual.filial,
       usuario_id: usuarioAtual.id,
       usuario_nome: usuarioAtual.nome,
       filial_saida: saida,
       filial_destino: destino,
-      arquivo_nome: arquivo.nome,
-      arquivo_conteudo: arquivo.conteudo,
+      arquivo_nome: evidencias[0].nome,
+      arquivo_conteudo: evidencias[0].conteudo,
+      evidencias,
       obs: $("venda-obs").value.trim() || null,
       status: "pendente",
       pedidos: []
@@ -899,13 +999,13 @@ $("form-venda").addEventListener("submit", async e => {
     await carregarVendasSupabase();
     renderizarVendas();
     renderizarInicio();
-    mostrarToast("Pedido enviado ao admin!");
+    mostrarToast("Pedido avulso enviado ao admin!");
   } catch (err) {
     mostrarToast("Erro ao enviar: " + err.message);
   }
 });
 
-/* ---------- Vendas casadas — agora 100% Supabase ---------- */
+/* ---------- Pedidos avulsos — 100% Supabase ---------- */
 let minhasAutorizacoes = [];
 
 async function carregarVendasSupabase() {
@@ -977,7 +1077,6 @@ async function abrirModalAutorizacao(autId) {
   const v = a.vendas_casadas;
   authModalCtx = { autId, vendaId: v.id };
 
-  // Processo completo: todas as autorizações da venda
   const { data: todas } = await supabase.from("autorizacoes_venda")
     .select("*").eq("venda_id", v.id);
 
@@ -990,7 +1089,7 @@ async function abrirModalAutorizacao(autId) {
     <div class="text-xs bg-slate-50 border border-slate-200 rounded-sm p-3 flex flex-col gap-1.5">
       <span><strong class="text-slate-500 uppercase text-[9px] tracking-wide">Solicitante:</strong> ${escapeHtml(v.usuario_nome || nomeLoja(v.loja_id))} (filial ${escapeHtml(v.loja_id)})</span>
       <span><strong class="text-slate-500 uppercase text-[9px] tracking-wide">Enviado em:</strong> ${dataHoraBr(v.data_envio)}</span>
-      <span><strong class="text-slate-500 uppercase text-[9px] tracking-wide">PDF do pedido:</strong> <a href="#" onclick="event.preventDefault(); baixarVendaPorId('${v.id}')" class="text-blue-700 font-bold">${escapeHtml(v.arquivo_nome || "arquivo")}</a></span>
+      <span><strong class="text-slate-500 uppercase text-[9px] tracking-wide">Evidências:</strong> ${(Array.isArray(v.evidencias) && v.evidencias.length ? v.evidencias : (v.arquivo_nome ? [{ nome: v.arquivo_nome }] : [])).map((ev, i) => `<a href="#" onclick="event.preventDefault(); baixarEvidenciaVenda('${v.id}', ${i})" class="text-blue-700 font-bold">${escapeHtml(ev.nome)}</a>`).join(" · ") || "—"}</span>
       ${a.exigido_por ? `<span><strong class="text-slate-500 uppercase text-[9px] tracking-wide">Autorização exigida por:</strong> ${escapeHtml(a.exigido_por)} (admin)</span>` : ""}
       ${v.obs ? `<span><strong class="text-slate-500 uppercase text-[9px] tracking-wide">Obs. do solicitante:</strong> ${escapeHtml(v.obs)}</span>` : ""}
     </div>`;
@@ -1043,13 +1142,11 @@ async function confirmarRecusaAutorizacao() {
   }
 
   const agora = new Date().toISOString();
-  // 1. Marca a autorização como recusada
   const { error } = await supabase.from("autorizacoes_venda")
     .update({ status: "recusado", motivo_recusa: motivo, data_resposta: agora })
     .eq("id", authModalCtx.autId);
   if (error) { mostrarToast("Erro: " + error.message); return; }
 
-  // 2. A venda é negada automaticamente, com o motivo visível para todos
   await supabase.from("vendas_casadas").update({
     status: "negado",
     motivo_negacao: `Autorização recusada por ${usuarioAtual.nome}: ${motivo}`,
@@ -1062,27 +1159,6 @@ async function confirmarRecusaAutorizacao() {
   renderizarInicio();
   atualizarModalDetalhe();
   mostrarToast("Autorização recusada. O pedido foi negado com a justificativa.");
-}
-
-async function darOkAutorizacao(autId, vendaId) {
-  const { error } = await supabase.from("autorizacoes_venda")
-    .update({ status: "aprovado", data_resposta: new Date().toISOString() })
-    .eq("id", autId);
-  if (error) { mostrarToast("Erro: " + error.message); return; }
-
-  const { data: restantes } = await supabase.from("autorizacoes_venda")
-    .select("id")
-    .eq("venda_id", vendaId)
-    .eq("status", "pendente");
-
-  await carregarVendasSupabase();
-  renderizarVendas();
-
-  if (!restantes || restantes.length === 0) {
-    mostrarToast("Você autorizou — todos já autorizaram! O admin já pode aprovar.");
-  } else {
-    mostrarToast("Autorização registrada. Ainda aguardando outras pessoas.");
-  }
 }
 
 /* ⬇ Lista RESUMIDA de pedidos avulsos + filtro por situação */
@@ -1100,6 +1176,7 @@ function renderizarVendas() {
   container.innerHTML = lista.map(v => {
     const corBorda =
       v.status === "aprovado" ? "border-l-green-600" :
+      v.status === "negado_permanente" ? "border-l-red-700" :
       v.status === "negado" ? "border-l-red-500" :
       v.status === "aguardando_autorizacoes" ? "border-l-amber-400" : "border-l-indigo-400";
 
@@ -1128,14 +1205,28 @@ function abrirModalDetalheVendaLoja(id) {
   detalheAbertoId = id;
   detalheAbertoTipo = "venda";
   const pedidos = Array.isArray(v.pedidos) ? v.pedidos : [];
+  const evidencias = (Array.isArray(v.evidencias) && v.evidencias.length)
+    ? v.evidencias
+    : (v.arquivo_nome ? [{ nome: v.arquivo_nome, conteudo: v.arquivo_conteudo }] : []);
 
   let rodape = "";
   if (v.status === "aprovado") {
     rodape = `<p class="text-[11px] text-slate-500"><strong class="text-green-700">Concluído em:</strong> ${dataHoraBr(v.data_resposta)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(v.respondido_por || "Admin")}</p>`;
   }
-  if (v.status === "negado") {
-    rodape = `<p class="text-[11px] text-slate-500"><strong class="text-red-600">Negado em:</strong> ${dataHoraBr(v.data_resposta)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(v.respondido_por || "Admin")}</p>`;
+  if (v.status === "negado" || v.status === "negado_permanente") {
+    rodape = `<p class="text-[11px] text-slate-500"><strong class="text-red-600">${v.status === "negado_permanente" ? "Negado permanentemente em:" : "Negado em:"}</strong> ${dataHoraBr(v.data_resposta)} &nbsp;·&nbsp; <strong>por:</strong> ${escapeHtml(v.respondido_por || "Admin")}</p>`;
   }
+
+  const ajustesHtml = (Array.isArray(v.ajustes) && v.ajustes.length) ? `
+    <div>
+      <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Seus ajustes</span>
+      ${v.ajustes.map(a => `
+        <div class="border border-slate-200 bg-white rounded-sm px-2.5 py-2 mb-1">
+          <p class="text-[11px] text-slate-400">${escapeHtml(a.por)} · ${dataHoraBr(a.data)}</p>
+          ${a.obs ? `<p class="text-[11px] text-slate-600"><i class="fas fa-comment-dots text-sky-400 mr-1"></i>${escapeHtml(a.obs)}</p>` : ""}
+          ${(a.evidencias || []).map((ev, i) => `<p class="text-[11px] text-slate-500"><i class="fas fa-paperclip text-slate-300 mr-1"></i><a href="#" onclick="event.preventDefault(); baixarEvidenciaAjuste('${v.id}', '${a.data}', ${i})" class="text-blue-700 font-bold">${escapeHtml(ev.nome)}</a></p>`).join("")}
+        </div>`).join("")}
+    </div>` : "";
 
   $("modal-detalhe-conteudo").innerHTML = `
     <h2 class="text-lg font-bold text-slate-800 mb-1">Pedido avulso</h2>
@@ -1147,25 +1238,21 @@ function abrirModalDetalheVendaLoja(id) {
           <i class="fas fa-arrow-right text-slate-300 text-[9px]"></i>
           <span class="bg-white border border-slate-200 px-1.5 py-0.5 rounded-sm">Destino: ${nomeLoja(v.filial_destino)}</span>
         </div>`,
-        `<p class="text-[11px] text-slate-500"><i class="fas fa-paperclip text-slate-300 mr-1"></i><a href="#" onclick="event.preventDefault(); baixarVendaPorId('${v.id}')" class="text-blue-700 font-bold">${escapeHtml(v.arquivo_nome || "arquivo")}</a> <span class="text-slate-400">· ${dataHoraBr(v.data_envio)}</span></p>`,
+        `<p class="text-[11px] text-slate-500"><i class="fas fa-paperclip text-slate-300 mr-1"></i>${evidencias.map((ev, i) => `<a href="#" onclick="event.preventDefault(); baixarEvidenciaVenda('${v.id}', ${i})" class="text-blue-700 font-bold">${escapeHtml(ev.nome)}</a>`).join(" · ") || "—"} <span class="text-slate-400">· ${dataHoraBr(v.data_envio)}</span></p>`,
         v.obs ? `<p class="text-[11px] text-slate-500"><i class="fas fa-comment-dots text-indigo-300 mr-1"></i>${escapeHtml(v.obs)}</p>` : ""
       ])}
       ${pedidos.length ? `<div><span class="text-slate-400 font-bold uppercase text-[9px] tracking-wide block mb-1">Pedidos registrados</span>${blocoPedidos(pedidos)}</div>` : ""}
-      ${v.status === "negado" && v.motivo_negacao ? `<p class="text-[11px] text-red-600"><i class="fas fa-ban text-red-300 mr-1"></i><strong>${escapeHtml(v.motivo_negacao)}</strong></p>` : ""}
+      ${(v.status === "negado" || v.status === "negado_permanente") && v.motivo_negacao ? `<p class="text-[11px] text-red-600"><i class="fas fa-ban text-red-300 mr-1"></i><strong>${escapeHtml(v.motivo_negacao)}</strong></p>` : ""}
+      ${ajustesHtml}
       ${rodape}
-    </div>`;
+    </div>
+    ${v.status === "negado" ? `
+    <div class="flex justify-end pt-3">
+      <button onclick="abrirModalAjuste('${v.id}')" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-sm text-xs font-bold uppercase tracking-wide transition-colors whitespace-nowrap">
+        <i class="fas fa-reply mr-1"></i> Responder ao admin / ajustar
+      </button>
+    </div>` : ""}`;
   $("modal-detalhe").classList.remove("hidden");
-}
-
-/* ⬇ Modal Novo Pedido Avulso */
-function abrirModalPedidoAvulso() {
-  $("form-venda").reset();
-  renderizarDropdownsVenda();
-  $("modal-pedido-avulso").classList.remove("hidden");
-}
-
-function fecharModalPedidoAvulso() {
-  $("modal-pedido-avulso").classList.add("hidden");
 }
 
 function baixarVendaPorId(id) {
@@ -1173,14 +1260,98 @@ function baixarVendaPorId(id) {
   if (v?.arquivo_conteudo) baixarArquivo(v.arquivo_nome, v.arquivo_conteudo);
 }
 
+function evidenciasDaVenda(v) {
+  return (Array.isArray(v.evidencias) && v.evidencias.length)
+    ? v.evidencias
+    : (v.arquivo_nome ? [{ nome: v.arquivo_nome, conteudo: v.arquivo_conteudo }] : []);
+}
+
+function baixarEvidenciaVenda(vendaId, i) {
+  const v = vendasCache[vendaId];
+  if (!v) return;
+  const lista = evidenciasDaVenda(v);
+  if (lista[i]) baixarArquivo(lista[i].nome, lista[i].conteudo);
+}
+
+function baixarEvidenciaAjuste(vendaId, dataAjuste, i) {
+  const v = vendasCache[vendaId];
+  if (!v || !Array.isArray(v.ajustes)) return;
+  const ajuste = v.ajustes.find(a => a.data === dataAjuste);
+  if (ajuste?.evidencias?.[i]) baixarArquivo(ajuste.evidencias[i].nome, ajuste.evidencias[i].conteudo);
+}
+
+/* =========================================================
+   RESPONDER AO ADMIN (ajuste após negado)
+   ========================================================= */
+function abrirModalAjuste(id) {
+  const v = vendasCache[id];
+  if (!v) return;
+  ajusteVendaId = id;
+  $("modal-ajuste-info").innerText = `Pedido avulso ${nomeLoja(v.filial_saida)} → ${nomeLoja(v.filial_destino)} · enviado em ${dataHoraBr(v.data_envio)}`;
+  $("modal-ajuste-motivo").innerText = v.motivo_negacao ? `Pedida do admin: ${v.motivo_negacao}` : "";
+  $("modal-ajuste-motivo").style.display = v.motivo_negacao ? "" : "none";
+  $("ajuste-arquivos").value = "";
+  $("ajuste-obs").value = "";
+  $("msg-modal-ajuste").classList.add("hidden");
+  $("modal-resposta-admin").classList.remove("hidden");
+}
+
+function fecharModalAjuste() {
+  $("modal-resposta-admin").classList.add("hidden");
+  ajusteVendaId = null;
+}
+
+async function confirmarAjusteAvulso() {
+  const v = vendasCache[ajusteVendaId];
+  if (!v) return;
+  const btn = $("btn-confirmar-ajuste");
+  btn.disabled = true;
+  btn.innerText = "Enviando...";
+  try {
+    const arquivos = [...$("ajuste-arquivos").files];
+    const obs = $("ajuste-obs").value.trim();
+    if (!arquivos.length && !obs) {
+      $("msg-modal-ajuste").innerText = "Anexe algo ou escreva o que foi ajustado.";
+      $("msg-modal-ajuste").classList.remove("hidden");
+      return;
+    }
+    const evidencias = [];
+    for (const arq of arquivos) {
+      if (arq.size > LIMITE_ARQUIVO) { mostrarToast(`"${arq.name}" é muito grande (máx. 500 KB).`); return; }
+      const conteudo = await lerArquivoBruto(arq);
+      evidencias.push({ nome: arq.name, conteudo });
+    }
+    const ajustes = [...(Array.isArray(v.ajustes) ? v.ajustes : []),
+      { obs, evidencias, data: new Date().toISOString(), por: usuarioAtual.nome }];
+    const { error } = await supabase.from("vendas_casadas")
+      .update({ status: "pendente", ajustes })
+      .eq("id", ajusteVendaId);
+    if (error) throw error;
+
+    fecharModalAjuste();
+    await carregarVendasSupabase();
+    renderizarVendas();
+    renderizarInicio();
+    atualizarModalDetalhe();
+    mostrarToast("Ajuste enviado ao admin.");
+  } catch (err) {
+    $("msg-modal-ajuste").innerText = "Erro: " + err.message;
+    $("msg-modal-ajuste").classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Enviar ajuste";
+  }
+}
+
 /* ---------- Expõe funções usadas nos onclick inline ---------- */
 Object.assign(window, {
   toggleDropdown, toggleSidebarDesktop, toggleMobileMenu, mudarAba,
   atualizarTudo, sairDoSistema, abrirModalCadastro, fecharModalCadastro,
   abrirModalResposta, fecharModalResposta, confirmarResposta,
-  baixarTransfPorId, baixarVendaPorId,
+  baixarTransfPorId, baixarVendaPorId, baixarEvidenciaVenda, baixarEvidenciaAjuste,
   abrirModalAutorizacao, fecharModalAutorizacao,
   confirmarOkAutorizacao, confirmarRecusaAutorizacao,
   fecharModalDetalhe, abrirModalDetalheTransfLoja, abrirModalDetalheVendaLoja,
-  abrirModalPedidoAvulso, fecharModalPedidoAvulso
+  abrirModalPedidoAvulso, fecharModalPedidoAvulso,
+  abrirModalAjuste, fecharModalAjuste, confirmarAjusteAvulso
 });
